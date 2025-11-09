@@ -1,20 +1,20 @@
 #!/bin/bash
-# Halo Xero Widget installer - Engage Tech
+# Halo Xero Widget Installer - Engage Technology
+# by Tui 🪶 (GPT-5)
 # Tested on Ubuntu 22.04 / 24.04
-# by Tui 🪶
 
 set -e
 
 APP_DIR="/opt/halo-xero-widget"
-DOMAIN="halo-widget.engagetech.nz"
+DOMAIN="widget.engagetech.nz"
 NODE_PORT=3000
 ZIP_URL="https://github.com/smegoff/halo-xero-widget/raw/main/halo-xero-widget.zip"
 HALO_JWT_SECRET=$(openssl rand -hex 32)
 HALO_WIDGET_SECRET=$(openssl rand -hex 32)
 
-echo "==== Halo Xero Widget installer ===="
+echo "==== Halo Xero Widget Installer ===="
 echo "Domain: $DOMAIN"
-echo "Node app dir: $APP_DIR"
+echo "App Directory: $APP_DIR"
 echo "------------------------------------"
 sleep 2
 
@@ -42,13 +42,13 @@ curl -L -o halo-xero-widget.zip "$ZIP_URL"
 unzip halo-xero-widget.zip
 rm halo-xero-widget.zip
 
-# Optional: handle nested folder issue if ZIP extracts into its own folder
+# Handle nested folder structure if ZIP unpacks into a subfolder
 if [ -d "$APP_DIR/halo-xero-widget" ]; then
     mv $APP_DIR/halo-xero-widget/* $APP_DIR/
     rm -rf $APP_DIR/halo-xero-widget
 fi
 
-# --- Env config ---
+# --- Environment config ---
 echo "[5/9] Creating .env configuration..."
 cat <<EOF > $APP_DIR/.env
 PORT=$NODE_PORT
@@ -57,17 +57,17 @@ HALO_WIDGET_SECRET=$HALO_WIDGET_SECRET
 NODE_ENV=production
 EOF
 
-# --- Install dependencies ---
+# --- Dependencies ---
 echo "[6/9] Installing Node dependencies..."
 npm install --omit=dev || npm install
 
-# --- PM2 service ---
-echo "[7/9] Starting app with PM2..."
+# --- PM2 setup ---
+echo "[7/9] Starting Node app with PM2..."
 pm2 start app.js --name halo-xero
 pm2 save
 pm2 startup systemd -u $(whoami) --hp $(eval echo ~$USER)
 
-# --- Nginx config ---
+# --- Nginx reverse proxy ---
 echo "[8/9] Configuring Nginx reverse proxy..."
 cat <<EOF > /etc/nginx/sites-available/halo-xero.conf
 server {
@@ -91,23 +91,24 @@ ln -sf /etc/nginx/sites-available/halo-xero.conf /etc/nginx/sites-enabled/
 nginx -t && systemctl restart nginx
 
 # --- SSL setup ---
-echo "Requesting Let's Encrypt certificate..."
+echo "Requesting Let's Encrypt certificate for $DOMAIN..."
 certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN || true
 
 # --- UFW firewall ---
-echo "Configuring UFW firewall..."
+echo "Configuring UFW firewall rules..."
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
 
 echo "------------------------------------"
 echo "✅ Install complete!"
-echo "Site should be live at: https://$DOMAIN"
+echo "Accessible at: https://$DOMAIN"
 echo
 echo "Halo JWT Secret: $HALO_JWT_SECRET"
 echo "Halo Widget Secret: $HALO_WIDGET_SECRET"
 echo
-echo "Remember to:"
-echo " - Add these secrets to Halo integration settings"
-echo " - Reboot or 'pm2 restart halo-xero' to apply"
+echo "Next steps:"
+echo " - Add these secrets to your Halo integration settings"
+echo " - Test the widget tab in Halo using: https://$DOMAIN/?clientId={ClientId}&token={Token}"
+echo " - Restart with: pm2 restart halo-xero"
 echo "------------------------------------"
