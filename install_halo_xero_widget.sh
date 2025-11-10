@@ -1,15 +1,15 @@
 #!/bin/bash
-# Halo Xero Widget Installer - Engage Technology (v5)
+# Halo Xero Widget Installer - Engage Technology (v5.1)
 # by Tui 🪶
 # Tested on Ubuntu 24.04 / 25.04
 # ------------------------------------------------------
 # NOTE:
 # Do NOT run this using `bash <(curl ...)`
 # Some Ubuntu versions can throw /dev/fd/63 errors.
-# Use the 2-step method instead:
-#   curl -fsSL -o install_halo_xero_widget_v5.sh https://raw.githubusercontent.com/smegoff/halo-xero-widget/main/install_halo_xero_widget_v5.sh
-#   sudo chmod +x install_halo_xero_widget_v5.sh
-#   sudo ./install_halo_xero_widget_v5.sh
+# Use the safe 2-step method instead:
+#   curl -fsSL -o install_halo_xero_widget.sh https://raw.githubusercontent.com/smegoff/halo-xero-widget/main/install_halo_xero_widget.sh
+#   sudo chmod +x install_halo_xero_widget.sh
+#   sudo ./install_halo_xero_widget.sh
 # ------------------------------------------------------
 
 set -e
@@ -17,14 +17,10 @@ set -e
 # --- Detect if being run via a pipe and warn the user ---
 if [ -p /dev/stdin ]; then
     echo
-    echo "⚠️  You appear to be piping this script directly (bash <(curl ...))."
-    echo "That can cause install failures on some Ubuntu systems."
+    echo "⚠️  You're piping this script directly (bash <(curl ...))."
+    echo "That can fail on some Ubuntu systems."
     echo
-    echo "👉 Please use the safer 2-step method instead:"
-    echo "   curl -fsSL -o install_halo_xero_widget_v5.sh https://raw.githubusercontent.com/smegoff/halo-xero-widget/main/install_halo_xero_widget_v5.sh"
-    echo "   sudo chmod +x install_halo_xero_widget_v5.sh"
-    echo "   sudo ./install_halo_xero_widget_v5.sh"
-    echo
+    echo "👉  Please use the safe 2-step method shown above."
     echo "Exiting now for safety."
     exit 1
 fi
@@ -36,10 +32,10 @@ ZIP_URL="https://github.com/smegoff/halo-xero-widget/raw/main/halo-xero-widget.z
 HALO_JWT_SECRET=$(openssl rand -hex 32)
 HALO_WIDGET_SECRET=$(openssl rand -hex 32)
 
-echo "==== Halo Xero Widget Installer (v5) ===="
+echo "==== Halo Xero Widget Installer (v5.1) ===="
 echo "Domain: $DOMAIN"
 echo "App Directory: $APP_DIR"
-echo "-----------------------------------------"
+echo "-------------------------------------------"
 sleep 2
 
 # --- 1. System prep ---
@@ -85,28 +81,34 @@ EOF
 echo "[6/10] Installing Node dependencies..."
 npm install --omit=dev || npm install
 
-# --- 6. Detect main entry file ---
+# --- 6. PM2 setup (auto-detect entry file) ---
+echo "[7/10] Detecting main entry point and starting Node app with PM2..."
+cd $APP_DIR
+
 MAIN_FILE=$(jq -r '.main' package.json 2>/dev/null || echo "")
 if [ -z "$MAIN_FILE" ] || [ ! -f "$MAIN_FILE" ]; then
     if [ -f "server.js" ]; then
         MAIN_FILE="server.js"
     elif [ -f "app.js" ]; then
         MAIN_FILE="app.js"
+    elif [ -f "index.js" ]; then
+        MAIN_FILE="index.js"
     else
-        echo "⚠️  No main file found. Defaulting to server.js."
+        echo "⚠️  No obvious entry point found, defaulting to server.js"
         MAIN_FILE="server.js"
     fi
 fi
-echo "Detected main file: $MAIN_FILE"
+echo "Detected entry file: $MAIN_FILE"
 
-# --- 7. PM2 setup ---
-echo "[7/10] Starting Node app with PM2..."
+export PM2_HOME="/home/$(whoami)/.pm2"
+mkdir -p "$PM2_HOME"
+
 pm2 delete all || true
 pm2 start "$MAIN_FILE" --name halo-xero
 pm2 save
 pm2 startup systemd -u $(whoami) --hp $(eval echo ~$USER)
 
-# --- 8. Nginx reverse proxy ---
+# --- 7. Nginx reverse proxy ---
 echo "[8/10] Configuring Nginx reverse proxy..."
 cat <<EOF > /etc/nginx/sites-available/halo-xero.conf
 server {
@@ -129,18 +131,17 @@ EOF
 ln -sf /etc/nginx/sites-available/halo-xero.conf /etc/nginx/sites-enabled/
 nginx -t && systemctl restart nginx
 
-# --- 9. SSL setup ---
+# --- 8. SSL setup ---
 echo "[9/10] Requesting Let's Encrypt certificate for $DOMAIN..."
 if sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN; then
     echo "✅ SSL certificate installed successfully."
 else
-    echo "⚠️ Certbot failed — check DNS or port 80 availability. You can retry later with:"
-    echo "   sudo certbot --nginx -d $DOMAIN"
+    echo "⚠️ Certbot failed — check DNS or port 80 availability."
+    echo "   Retry manually later with: sudo certbot --nginx -d $DOMAIN"
 fi
 
-# --- 10. Optional Fail2Ban + SSH restrictions ---
+# --- 9. Optional Fail2Ban + SSH restrictions ---
 read -p "Would you like to install Fail2Ban and restrict SSH access to specific IPs? (y/n): " install_security
-
 if [[ "$install_security" =~ ^[Yy]$ ]]; then
     echo "[10/10] Installing and configuring Fail2Ban + SSH IP whitelist..."
     apt install -y fail2ban ufw
@@ -187,7 +188,7 @@ else
     ufw --force enable
 fi
 
-# --- Final validation ---
+# --- 10. Validation ---
 echo "------------------------------------"
 echo "Running validation checks..."
 curl -s -I http://127.0.0.1:$NODE_PORT | head -n 1 || echo "⚠️ Local HTTP test failed."
@@ -202,6 +203,8 @@ echo "Halo JWT Secret: $HALO_JWT_SECRET"
 echo "Halo Widget Secret: $HALO_WIDGET_SECRET"
 echo
 echo "Secrets stored in: $APP_DIR/.env"
+echo
+echo "Installer version: v5.1  (generated $(date '+%Y-%m-%d'))"
 echo
 echo "Next steps:"
 echo " - Add these secrets to Halo integration settings"
