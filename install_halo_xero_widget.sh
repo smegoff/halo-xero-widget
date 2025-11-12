@@ -1,213 +1,156 @@
 #!/bin/bash
-# Halo Xero Widget Installer - Engage Technology (v5.1)
-# by Tui 🪶
-# Tested on Ubuntu 24.04 / 25.04
-# ------------------------------------------------------
-# NOTE:
-# Do NOT run this using `bash <(curl ...)`
-# Some Ubuntu versions can throw /dev/fd/63 errors.
-# Use the safe 2-step method instead:
-#   curl -fsSL -o install_halo_xero_widget.sh https://raw.githubusercontent.com/smegoff/halo-xero-widget/main/install_halo_xero_widget.sh
-#   sudo chmod +x install_halo_xero_widget.sh
-#   sudo ./install_halo_xero_widget.sh
-# ------------------------------------------------------
+# =====================================================
+# Halo ↔ Xero Widget Installer v6
+# Author: Engage Technology / Sean Glasspool
+# =====================================================
 
 set -e
+APP_DIR="/opt/halo-xero-widget"
+REPO_ZIP_URL="https://github.com/smegoff/halo-xero-widget/raw/main/halo-xero-widget.zip"
+SERVER_JS_URL="https://raw.githubusercontent.com/smegoff/halo-xero-widget/main/server.js"
+NODE_VER="20"
 
-# --- Detect if being run via a pipe and warn the user ---
-if [ -p /dev/stdin ]; then
-    echo
-    echo "⚠️  You're piping this script directly (bash <(curl ...))."
-    echo "That can fail on some Ubuntu systems."
-    echo
-    echo "👉  Please use the safe 2-step method shown above."
-    echo "Exiting now for safety."
-    exit 1
+echo "🚀 Halo ↔ Xero Widget Installer v6 starting..."
+
+# --- Confirm we're running as root or sudo ---
+if [[ $EUID -ne 0 ]]; then
+  echo "❌ Please run this script as root (sudo bash install_halo_xero_widget_v6.sh)"
+  exit 1
 fi
 
-APP_DIR="/opt/halo-xero-widget"
-DOMAIN="widget.engagetech.nz"
-NODE_PORT=3000
-ZIP_URL="https://github.com/smegoff/halo-xero-widget/raw/main/halo-xero-widget.zip"
+# --- Update system ---
+apt update -y && apt install -y curl unzip ufw fail2ban nginx nodejs npm
+
+# --- Setup Node version if needed ---
+if ! command -v node >/dev/null 2>&1; then
+  echo "⚙️ Installing Node.js v${NODE_VER}..."
+  curl -fsSL https://deb.nodesource.com/setup_${NODE_VER}.x | bash -
+  apt install -y nodejs
+fi
+
+# --- Create app directory ---
+mkdir -p "$APP_DIR"
+cd "$APP_DIR"
+
+# --- Download & extract repo ---
+echo "📦 Downloading Halo-Xero widget package..."
+curl -fsSL "$REPO_ZIP_URL" -o halo-xero-widget.zip
+unzip -o halo-xero-widget.zip -d "$APP_DIR"
+
+# --- Always pull the latest server.js ---
+echo "📥 Fetching latest server.js..."
+curl -fsSL "$SERVER_JS_URL" -o "$APP_DIR/server.js"
+
+# --- Fix permissions ---
+chown -R engageadmin:engageadmin "$APP_DIR"
+chmod -R 775 "$APP_DIR"
+
+# --- Install Node dependencies ---
+echo "📦 Installing dependencies..."
+sudo -u engageadmin npm install express axios dotenv ejs jsonwebtoken node-cache
+
+# --- Setup environment file ---
+if [[ ! -f "$APP_DIR/.env" ]]; then
+  echo "⚙️ Creating .env file..."
+  cat <<EOF > "$APP_DIR/.env"
+# --- Halo / Xero Widget Config ---
+PORT=3000
 HALO_JWT_SECRET=$(openssl rand -hex 32)
 HALO_WIDGET_SECRET=$(openssl rand -hex 32)
 
-echo "==== Halo Xero Widget Installer (v5.1) ===="
-echo "Domain: $DOMAIN"
-echo "App Directory: $APP_DIR"
-echo "-------------------------------------------"
-sleep 2
-
-# --- 1. System prep ---
-echo "[1/10] Updating system..."
-apt update && apt upgrade -y
-
-echo "[2/10] Installing required packages..."
-apt install -y curl nginx ufw git unzip certbot python3-certbot-nginx jq
-
-# --- 2. Node.js + PM2 ---
-echo "[3/10] Installing Node.js LTS & PM2..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-npm install -g pm2
-
-# --- 3. App setup ---
-echo "[4/10] Creating app directory and downloading code..."
-rm -rf $APP_DIR
-mkdir -p $APP_DIR
-cd $APP_DIR
-
-echo "Downloading ZIP from GitHub..."
-curl -L -o halo-xero-widget.zip "$ZIP_URL"
-unzip -o halo-xero-widget.zip
-rm halo-xero-widget.zip
-
-# Handle nested folder structure
-if [ -d "$APP_DIR/halo-xero-widget" ]; then
-    mv $APP_DIR/halo-xero-widget/* $APP_DIR/
-    rm -rf $APP_DIR/halo-xero-widget
-fi
-
-# --- 4. Environment configuration ---
-echo "[5/10] Creating .env configuration..."
-cat <<EOF > $APP_DIR/.env
-PORT=$NODE_PORT
-HALO_JWT_SECRET=$HALO_JWT_SECRET
-HALO_WIDGET_SECRET=$HALO_WIDGET_SECRET
-NODE_ENV=production
+# --- Xero OAuth ---
+XERO_CLIENT_ID=
+XERO_CLIENT_SECRET=
+XERO_REDIRECT_URI=https://widget.engagetech.nz/auth/callback
+TENANT_ID=
 EOF
-
-# --- 5. Dependencies ---
-echo "[6/10] Installing Node dependencies..."
-npm install --omit=dev || npm install
-
-# --- 6. PM2 setup (auto-detect entry file) ---
-echo "[7/10] Detecting main entry point and starting Node app with PM2..."
-cd $APP_DIR
-
-MAIN_FILE=$(jq -r '.main' package.json 2>/dev/null || echo "")
-if [ -z "$MAIN_FILE" ] || [ ! -f "$MAIN_FILE" ]; then
-    if [ -f "server.js" ]; then
-        MAIN_FILE="server.js"
-    elif [ -f "app.js" ]; then
-        MAIN_FILE="app.js"
-    elif [ -f "index.js" ]; then
-        MAIN_FILE="index.js"
-    else
-        echo "⚠️  No obvious entry point found, defaulting to server.js"
-        MAIN_FILE="server.js"
-    fi
 fi
-echo "Detected entry file: $MAIN_FILE"
 
-export PM2_HOME="/home/$(whoami)/.pm2"
-mkdir -p "$PM2_HOME"
+# --- Create empty tokens file with proper permissions ---
+touch "$APP_DIR/tokens.json"
+chown engageadmin:engageadmin "$APP_DIR/tokens.json"
+chmod 664 "$APP_DIR/tokens.json"
 
-pm2 delete all || true
-pm2 start "$MAIN_FILE" --name halo-xero
-pm2 save
-pm2 startup systemd -u $(whoami) --hp $(eval echo ~$USER)
+# --- PM2 setup ---
+echo "⚙️ Setting up PM2..."
+npm install -g pm2
+sudo -u engageadmin pm2 start "$APP_DIR/server.js" --name halo-xero
+sudo -u engageadmin pm2 save
+sudo -u engageadmin pm2 startup systemd -u engageadmin --hp /home/engageadmin
 
-# --- 7. Nginx reverse proxy ---
-echo "[8/10] Configuring Nginx reverse proxy..."
-cat <<EOF > /etc/nginx/sites-available/halo-xero.conf
+# --- Nginx reverse proxy ---
+echo "🌐 Configuring Nginx..."
+cat <<'NGINX' > /etc/nginx/sites-available/widget.engagetech.nz
 server {
-    server_name $DOMAIN;
+    listen 80;
+    server_name widget.engagetech.nz;
 
     location / {
-        proxy_pass http://127.0.0.1:$NODE_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    listen 80;
-    listen [::]:80;
 }
-EOF
+NGINX
+ln -sf /etc/nginx/sites-available/widget.engagetech.nz /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
 
-ln -sf /etc/nginx/sites-available/halo-xero.conf /etc/nginx/sites-enabled/
-nginx -t && systemctl restart nginx
-
-# --- 8. SSL setup ---
-echo "[9/10] Requesting Let's Encrypt certificate for $DOMAIN..."
-if sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN; then
-    echo "✅ SSL certificate installed successfully."
-else
-    echo "⚠️ Certbot failed — check DNS or port 80 availability."
-    echo "   Retry manually later with: sudo certbot --nginx -d $DOMAIN"
+# --- Optional UFW setup ---
+read -p "🔒 Configure UFW and SSH whitelist? (y/n): " ENABLE_UFW
+if [[ $ENABLE_UFW == "y" || $ENABLE_UFW == "Y" ]]; then
+  read -p "Enter comma-separated IPs to allow for SSH (e.g. 202.74.208.244,202.36.209.158): " IP_WHITELIST
+  ufw --force reset
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow 80,443/tcp
+  IFS=',' read -ra IPS <<< "$IP_WHITELIST"
+  for ip in "${IPS[@]}"; do
+    ufw allow from "$ip" to any port 22 comment "SSH Whitelist"
+  done
+  ufw --force enable
+  echo "✅ UFW enabled and restricted to specified IPs."
 fi
 
-# --- 9. Optional Fail2Ban + SSH restrictions ---
-read -p "Would you like to install Fail2Ban and restrict SSH access to specific IPs? (y/n): " install_security
-if [[ "$install_security" =~ ^[Yy]$ ]]; then
-    echo "[10/10] Installing and configuring Fail2Ban + SSH IP whitelist..."
-    apt install -y fail2ban ufw
-
-    read -p "Enter comma-separated list of IPs to allow SSH from (e.g. 202.74.208.244,203.97.32.5): " ALLOWED_IPS
-
-    cat <<EOF >/etc/fail2ban/jail.local
-[DEFAULT]
-ignoreip = 127.0.0.1/8 ${ALLOWED_IPS//,/ }
-bantime = 1h
-findtime = 10m
-maxretry = 5
-backend = systemd
-banaction = ufw
-
+# --- Optional Fail2Ban setup ---
+read -p "🧱 Install Fail2Ban jail for SSH? (y/n): " ENABLE_F2B
+if [[ $ENABLE_F2B == "y" || $ENABLE_F2B == "Y" ]]; then
+  cat <<'JAIL' > /etc/fail2ban/jail.d/ssh.local
 [sshd]
 enabled = true
-port = ssh
-filter = sshd
+port    = ssh
+filter  = sshd
 logpath = /var/log/auth.log
-maxretry = 5
-EOF
-
-    systemctl enable fail2ban
-    systemctl restart fail2ban
-
-    ufw --force reset
-    ufw default deny incoming
-    ufw default allow outgoing
-    ufw allow 'Nginx Full'
-
-    IFS=',' read -ra ADDR <<< "$ALLOWED_IPS"
-    for ip in "${ADDR[@]}"; do
-        echo "Allowing SSH from $ip"
-        ufw allow proto tcp from $ip to any port 22
-    done
-
-    ufw --force enable
-    ufw reload
-else
-    echo "Skipping Fail2Ban + SSH restriction setup."
-    ufw allow 'Nginx Full'
-    ufw allow OpenSSH
-    ufw --force enable
+maxretry = 3
+bantime = 1h
+findtime = 10m
+JAIL
+  systemctl restart fail2ban
+  echo "✅ Fail2Ban jail active for SSH."
 fi
 
-# --- 10. Validation ---
-echo "------------------------------------"
-echo "Running validation checks..."
-curl -s -I http://127.0.0.1:$NODE_PORT | head -n 1 || echo "⚠️ Local HTTP test failed."
-pm2 status halo-xero || echo "⚠️ PM2 process not found."
-sudo ss -tlnp | grep -E ":(80|443)" || echo "⚠️ Nginx not listening yet."
+# --- Add halo-token alias ---
+echo "⚙️ Adding halo-token alias..."
+if ! grep -q "alias halo-token" /home/engageadmin/.bashrc; then
+  echo "alias halo-token='node -e \"import dotenv from \\\"dotenv\\\"; import jwt from \\\"jsonwebtoken\\\"; dotenv.config(); console.log(jwt.sign({ clientName: process.argv[1] || \\\"Test Client\\\", iat: Math.floor(Date.now()/1000) }, process.env.HALO_JWT_SECRET));\"'" >> /home/engageadmin/.bashrc
+fi
+chown engageadmin:engageadmin /home/engageadmin/.bashrc
+
+# --- Final report ---
+HALO_JWT_SECRET=$(grep HALO_JWT_SECRET "$APP_DIR/.env" | cut -d= -f2)
+HALO_WIDGET_SECRET=$(grep HALO_WIDGET_SECRET "$APP_DIR/.env" | cut -d= -f2)
 
 echo "------------------------------------"
 echo "✅ Install complete!"
-echo "Accessible at: https://$DOMAIN"
+echo "Accessible at: https://widget.engagetech.nz"
 echo
 echo "Halo JWT Secret: $HALO_JWT_SECRET"
 echo "Halo Widget Secret: $HALO_WIDGET_SECRET"
-echo
 echo "Secrets stored in: $APP_DIR/.env"
-echo
-echo "Installer version: v5.1  (generated $(date '+%Y-%m-%d'))"
 echo
 echo "Next steps:"
 echo " - Add these secrets to Halo integration settings"
-echo " - Test via: https://$DOMAIN/?clientId={ClientId}&token={Token}"
+echo " - Run: halo-token \"Dan Waite (C3601)\" to generate a test token"
 echo " - Restart with: pm2 restart halo-xero"
 echo "------------------------------------"
