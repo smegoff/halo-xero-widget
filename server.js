@@ -2,6 +2,9 @@ import express from "express";
 import axios from "axios";
 import NodeCache from "node-cache";
 import dotenv from "dotenv";
+import fs from "fs";
+import jwt from "jsonwebtoken";
+
 dotenv.config();
 
 const app = express();
@@ -12,8 +15,31 @@ app.use(express.json());
 // ---------- Local cache ----------
 const cache = new NodeCache({ stdTTL: 120 }); // 2-minute cache
 
-let tokens = { access_token: "", refresh_token: "" };
-let tenantId = process.env.TENANT_ID;
+// ---------- Persistent Xero token handling ----------
+const TOKEN_PATH = "/opt/halo-xero-widget/tokens.json";
+let tokens = { access_token: "", refresh_token: "", tenantId: "" };
+let tenantId = process.env.TENANT_ID || "";
+
+// Load existing tokens (if present)
+if (fs.existsSync(TOKEN_PATH)) {
+  try {
+    tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf8"));
+    tenantId = tokens.tenantId || tenantId;
+    console.log("🔁 Loaded stored Xero tokens.");
+  } catch (err) {
+    console.error("⚠️ Failed to read tokens.json:", err.message);
+  }
+}
+
+// Save tokens whenever they update
+function saveTokens() {
+  try {
+    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
+    console.log("💾 Xero tokens saved to disk.");
+  } catch (err) {
+    console.error("⚠️ Failed to write tokens.json:", err.message);
+  }
+}
 
 // ---------- OAuth handshake ----------
 app.get("/auth/connect", (req, res) => {
@@ -35,13 +61,17 @@ app.get("/auth/callback", async (req, res) => {
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
+
     tokens = r.data;
 
-    // Get tenant ID
+    // Get tenant ID and persist it
     const tenants = await axios.get("https://api.xero.com/connections", {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
     tenantId = tenants.data[0].tenantId;
+    tokens.tenantId = tenantId;
+    saveTokens();
+
     console.log("✅ Connected to Xero tenant:", tenantId);
     res.send("✅ Authorised – you can close this tab.");
   } catch (err) {
@@ -65,13 +95,28 @@ async function ensureToken() {
     }),
     { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
   );
-  tokens = r.data;
+
+  tokens = { ...tokens, ...r.data };
+  if (tenantId) tokens.tenantId = tenantId;
+  saveTokens();
   return tokens.access_token;
 }
 
 // ---------- Finance view ----------
 app.get("/finance", async (req, res) => {
   try {
+    const tokenParam = req.query.token;
+    if (!tokenParam) return res.status(401).send("Missing token");
+
+    // 🔐 Verify JWT
+    try {
+      jwt.verify(tokenParam, process.env.HALO_JWT_SECRET);
+    } catch (err) {
+      console.warn("⚠️ Invalid or expired JWT:", err.message);
+      return res.status(401).send("Invalid or expired token");
+    }
+
+    // Proceed if verified
     let contactId = req.query.contactId;
     const contactName = req.query.contactName;
 
