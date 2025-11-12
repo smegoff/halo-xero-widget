@@ -129,6 +129,26 @@ curl -I http://localhost:3000 || true
 pm2 status || true
 ss -tulpn | grep 3000 || true
 
+# === HALO-TOKEN COMMAND SELF-HEAL ===
+echo "🧠 Checking halo-token command..."
+if [ ! -f /usr/local/bin/halo-token ]; then
+  echo "🔧 Recreating missing /usr/local/bin/halo-token..."
+  cat <<'EOF' >/usr/local/bin/halo-token
+#!/bin/bash
+if [ -z "$1" ]; then
+  echo "Usage: halo-token 'Client Name'"
+  exit 1
+fi
+cd /opt/halo-xero-widget
+node -e "import jwt from 'jsonwebtoken'; import dotenv from 'dotenv'; dotenv.config(); console.log(jwt.sign({ clientName: '$1', iat: Math.floor(Date.now()/1000) }, process.env.HALO_JWT_SECRET));"
+EOF
+  chmod +x /usr/local/bin/halo-token
+  chown root:root /usr/local/bin/halo-token
+  echo "✅ halo-token command recreated."
+else
+  echo "✅ halo-token command already exists."
+fi
+
 # === SUMMARY ===
 cat <<EOT
 
