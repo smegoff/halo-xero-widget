@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Halo <> Xero Widget</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    th.sorted-asc::after  { content: " ?"; color: #2563eb; }
+    th.sorted-desc::after { content: " ?"; color: #2563eb; }
+    tr.fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="max-w-6xl mx-auto mt-10 p-6 bg-white shadow-md rounded-xl">
+    <h1 class="text-2xl font-bold mb-2">Client Xero Financial Summary</h1>
+    <p class="text-sm text-gray-500 mb-6">As at <%= asAt %></p>
+
+    <!-- Search bar -->
+    <div class="flex items-center justify-between mb-4">
+      <input id="searchBox" type="text" placeholder="Search invoices..."
+        class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 px-3 py-2 mr-3">
+      <button onclick="clearSearch()" class="bg-gray-200 hover:bg-gray-300 text-sm px-3 py-2 rounded">Clear</button>
+    </div>
+
+    <!-- Account balances -->
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="p-4 bg-blue-50 rounded-xl text-center">
+        <div class="text-sm text-gray-500">Account Balance</div>
+        <div class="text-xl font-semibold text-blue-700">$<%= accountBal %></div>
+      </div>
+      <div class="p-4 bg-red-50 rounded-xl text-center">
+        <div class="text-sm text-gray-500">Overdue Balance</div>
+        <div class="text-xl font-semibold text-red-700">$<%= overdueBal %></div>
+      </div>
+    </div>
+
+    <!-- Invoice table -->
+    <div class="overflow-x-auto">
+      <table id="invoiceTable" class="min-w-full border border-gray-200 rounded-lg overflow-hidden">
+        <thead class="bg-gray-100 border-b border-gray-200 select-none">
+          <tr>
+            <th onclick="sortTable(0)" class="py-2 px-3 text-left cursor-pointer">Date</th>
+            <th onclick="sortTable(1)" class="py-2 px-3 text-left cursor-pointer">Type</th>
+            <th onclick="sortTable(2)" class="py-2 px-3 text-left cursor-pointer">Number</th>
+            <th onclick="sortTable(3)" class="py-2 px-3 text-left cursor-pointer">Due Date</th>
+            <th onclick="sortTable(4)" class="py-2 px-3 text-right cursor-pointer">Total ($)</th>
+            <th onclick="sortTable(5)" class="py-2 px-3 text-right cursor-pointer">Balance ($)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(r => { %>
+          <tr class="border-b hover:bg-gray-50 fade-in">
+            <td class="py-2 px-3"><%= r.date %></td>
+            <td class="py-2 px-3"><%= r.type %></td>
+            <td class="py-2 px-3"><%= r.number %></td>
+            <td class="py-2 px-3"><%= r.due %></td>
+            <td class="py-2 px-3 text-right"><%= r.total %></td>
+            <td class="py-2 px-3 text-right"><%= r.balance %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+        <tfoot class="bg-gray-50 border-t font-semibold">
+          <tr>
+            <td colspan="3" class="py-2 px-3 text-left">Totals</td>
+            <td id="invoiceCount" class="py-2 px-3 text-left text-gray-600"></td>
+            <td id="totalSum" class="py-2 px-3 text-right text-blue-700"></td>
+            <td id="balanceSum" class="py-2 px-3 text-right text-red-700"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // --- Search filter ---
+    const searchBox = document.getElementById('searchBox');
+    searchBox.addEventListener('input', function() {
+      const filter = this.value.toLowerCase();
+      const rows = document.querySelectorAll('#invoiceTable tbody tr');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+      });
+      updateTotals();
+    });
+    function clearSearch() {
+      searchBox.value = '';
+      searchBox.dispatchEvent(new Event('input'));
+    }
+
+    // --- Column sorting with highlight and arrows ---
+    let currentSorted = null;
+    let sortDirection = 1;
+    function sortTable(colIndex) {
+      const table = document.getElementById('invoiceTable');
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      const type = colIndex >= 4 ? 'number' : 'string';
+      const headers = table.querySelectorAll('th');
+
+      // remove old highlights
+      headers.forEach(h => h.classList.remove('bg-blue-50', 'sorted-asc', 'sorted-desc'));
+
+      // toggle direction if same column
+      if (currentSorted === colIndex) sortDirection *= -1;
+      else sortDirection = 1;
+
+      // mark header as active
+      headers[colIndex].classList.add('bg-blue-50');
+      headers[colIndex].classList.add(sortDirection === 1 ? 'sorted-asc' : 'sorted-desc');
+      currentSorted = colIndex;
+
+      rows.sort((a, b) => {
+        const cellA = a.children[colIndex].innerText.trim();
+        const cellB = b.children[colIndex].innerText.trim();
+        if (type === 'number') {
+          return (parseFloat(cellA) - parseFloat(cellB)) * sortDirection;
+        } else {
+          return cellA.localeCompare(cellB) * sortDirection;
+        }
+      });
+      rows.forEach(r => table.querySelector('tbody').appendChild(r));
+      updateTotals();
+    }
+
+    // --- Totals calculation ---
+    function updateTotals() {
+      const visibleRows = Array.from(document.querySelectorAll('#invoiceTable tbody tr'))
+        .filter(r => r.style.display !== 'none');
+      const totals = visibleRows.reduce((acc, row) => {
+        const total = parseFloat(row.children[4].innerText) || 0;
+        const balance = parseFloat(row.children[5].innerText) || 0;
+        acc.total += total; acc.balance += balance; return acc;
+      }, { total: 0, balance: 0 });
+      document.getElementById('invoiceCount').textContent = visibleRows.length + ' items';
+      document.getElementById('totalSum').textContent = '$' + totals.total.toFixed(2);
+      document.getElementById('balanceSum').textContent = '$' + totals.balance.toFixed(2);
+    }
+    updateTotals();
+  </script>
+</body>
+</html>
