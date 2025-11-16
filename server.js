@@ -1,49 +1,44 @@
+
 import express from "express";
 import axios from "axios";
 import NodeCache from "node-cache";
 import dotenv from "dotenv";
 import fs from "fs";
 import crypto from "crypto";
-import path from "path";
-import { fileURLToPath } from "url";
+import ejs from "ejs";
+import puppeteer from "puppeteer";
+import ExcelJS from "exceljs";
 
 dotenv.config();
-
-// -----------------------------
-// Paths & basic setup
-// -----------------------------
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const TOKEN_PATH = path.join(__dirname, "tokens.json");
 
 const app = express();
 app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const cache = new NodeCache({ stdTTL: 120 }); // 2-minute cache
+// -----------------------------------------------------
+// CACHE
+// -----------------------------------------------------
+const cache = new NodeCache({ stdTTL: 120 });
 
-// -----------------------------
-// Xero token state
-// -----------------------------
+// -----------------------------------------------------
+// LOAD / SAVE XERO TOKENS
+// -----------------------------------------------------
+const TOKEN_PATH = "/opt/halo-xero-widget/tokens.json";
+
 let tokens = {
   access_token: "",
   refresh_token: "",
-  tenantId: process.env.TENANT_ID || "",
-  tenantName: "",
+  tenantId: "",
+  tenantName: ""
 };
 
-let tenantId = tokens.tenantId || process.env.TENANT_ID || "";
-
-// Load tokens from disk if present
 if (fs.existsSync(TOKEN_PATH)) {
   try {
-    const stored = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf8"));
-    tokens = { ...tokens, ...stored };
-    if (tokens.tenantId) tenantId = tokens.tenantId;
+    tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf8"));
     console.log("🔑 Loaded stored Xero tokens.");
-  } catch (err) {
-    console.error("⚠️ Failed to read tokens.json:", err.message);
+  } catch (e) {
+    console.error("⚠️ Failed to read tokens.json:", e.message);
   }
 }
 
@@ -51,143 +46,60 @@ function saveTokens() {
   try {
     fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
     console.log("💾 Xero tokens saved.");
-  } catch (err) {
-    console.error("⚠️ Failed to write tokens.json:", err.message);
+  } catch (e) {
+    console.error("⚠️ Failed to write tokens.json:", e.message);
   }
 }
 
-// -----------------------------
-// HMAC validation (Halo iframe)
-// -----------------------------
-const HMAC_SECRET = process.env.HMAC_SECRET;
-
-function validateHaloHmac(req) {
-  const area = req.query.area || null;
-  const agentId = req.query.agentId || req.query.agentid || null;
-  const received = req.query.hmac || null;
-  const hasSecret = !!HMAC_SECRET;
-
-  if (!hasSecret) {
-    return {
-      valid: false,
-      reason: "Missing HMAC secret",
-      area,
-      agentId,
-      hasSecret,
-    };
-  }
-
-  if (!received || !agentId) {
-    return {
-      valid: false,
-      reason: "Missing HMAC param or agentId",
-      area,
-      agentId,
-      hasSecret,
-    };
-  }
-
-  // ✅ Halo generates HMAC over just the agentId string
-  const canonical = agentId;
-  const expected = crypto
-    .createHmac("sha256", HMAC_SECRET)
-    .update(canonical)
-    .digest("base64");
-
-  const valid =
-    Buffer.from(received).length === Buffer.from(expected).length &&
-    crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
-
-  return {
-    valid,
-    canonical,
-    received,
-    expected,
-    area,
-    agentId,
-    hasSecret,
-  };
-}
-
-// Debug route to inspect HMAC behaviour from Halo
-app.get("/debug-hmac", (req, res) => {
-  const result = validateHaloHmac(req);
-  console.log("----- DEBUG HMAC REQUEST -----");
-  console.log("RAW QUERY:", req.query);
-  console.log("FULL URL:", req.originalUrl);
-  console.log("HMAC CHECK RESULT:", result);
-  console.log("-------------------------------");
-  res.json(result);
-});
-
-// -----------------------------
-// Xero OAuth Handshake
-// -----------------------------
+// -----------------------------------------------------
+// XERO AUTH
+// -----------------------------------------------------
 app.get("/auth/connect", (req, res) => {
   const url =
-    "https://login.xero.com/identity/connect/authorize" +
-    `?response_type=code` +
-    `&client_id=${encodeURIComponent(process.env.XERO_CLIENT_ID || "")}` +
-    `&redirect_uri=${encodeURIComponent(process.env.XERO_REDIRECT_URI || "")}` +
-    `&scope=${encodeURIComponent(
-      "accounting.transactions accounting.contacts offline_access"
-    )}`;
-
+    `https://login.xero.com/identity/connect/authorize?response_type=code` +
+    `&client_id=${process.env.XERO_CLIENT_ID}` +
+    `&redirect_uri=${process.env.XERO_REDIRECT_URI}` +
+    `&scope=accounting.transactions accounting.contacts offline_access`;
   res.redirect(url);
 });
 
 app.get("/auth/callback", async (req, res) => {
   try {
-    const code = req.query.code;
-    if (!code) {
-      return res.status(400).send("Missing 'code' from Xero");
-    }
-
-    const tokenResp = await axios.post(
+    const r = await axios.post(
       "https://identity.xero.com/connect/token",
       new URLSearchParams({
         grant_type: "authorization_code",
-        code,
+        code: req.query.code,
         redirect_uri: process.env.XERO_REDIRECT_URI,
         client_id: process.env.XERO_CLIENT_ID,
-        client_secret: process.env.XERO_CLIENT_SECRET,
+        client_secret: process.env.XERO_CLIENT_SECRET
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
-    tokens = { ...tokens, ...tokenResp.data };
+    tokens = { ...tokens, ...r.data };
 
-    // Get tenant info
     const tenants = await axios.get("https://api.xero.com/connections", {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
+      headers: { Authorization: `Bearer ${tokens.access_token}` }
     });
 
-    if (!tenants.data || tenants.data.length === 0) {
-      throw new Error("No Xero tenants returned from /connections");
-    }
+    tokens.tenantId = tenants.data[0].tenantId;
+    tokens.tenantName = tenants.data[0].tenantName;
 
-    const t = tenants.data[0];
-    tenantId = t.tenantId;
-    tokens.tenantId = t.tenantId;
-    tokens.tenantName = t.tenantName;
     saveTokens();
 
-    console.log("✅ Connected to Xero tenant:", tokens.tenantName, tenantId);
-    res.send("✅ Xero authorised – you can close this tab.");
-  } catch (err) {
-    console.error(
-      "❌ OAuth callback error:",
-      err.response?.data || err.message
-    );
-    res.status(500).send("Error during Xero OAuth callback – see logs.");
+    res.send("✅ Xero authenticated — you can close this tab.");
+  } catch (e) {
+    console.error("❌ OAuth callback error:", e.response?.data || e.message);
+    res.status(500).send("Auth error — check logs.");
   }
 });
 
-// Ensure we always have a fresh access token
+// -----------------------------------------------------
+// REFRESH TOKEN
+// -----------------------------------------------------
 async function ensureToken() {
-  if (!tokens.refresh_token) {
-    throw new Error("Not authorised with Xero yet (no refresh token).");
-  }
+  if (!tokens.refresh_token) throw new Error("Not authorised yet.");
 
   const r = await axios.post(
     "https://identity.xero.com/connect/token",
@@ -195,119 +107,139 @@ async function ensureToken() {
       grant_type: "refresh_token",
       refresh_token: tokens.refresh_token,
       client_id: process.env.XERO_CLIENT_ID,
-      client_secret: process.env.XERO_CLIENT_SECRET,
+      client_secret: process.env.XERO_CLIENT_SECRET
     }),
     { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
   );
 
   tokens = { ...tokens, ...r.data };
   saveTokens();
+
   return tokens.access_token;
 }
 
-async function ensureTenantId(accessToken) {
-  if (tenantId) return tenantId;
+// -----------------------------------------------------
+// HALO HMAC VALIDATION (ONLY agentId is hashed now)
+// -----------------------------------------------------
+function validateHaloHmac(req) {
+  const secret = process.env.HMAC_SECRET;
+  if (!secret)
+    return { valid: false, reason: "Missing HMAC secret", hasSecret: false };
 
-  const tenants = await axios.get("https://api.xero.com/connections", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const received = req.query.hmac || req.query.HMAC;
+  const agent = req.query.agentId || req.query.agentid;
+  const area = req.query.area;
 
-  if (!tenants.data || tenants.data.length === 0) {
-    throw new Error("No Xero tenants returned from /connections");
-  }
+  if (!received)
+    return { valid: false, reason: "Missing HMAC", hasSecret: true };
+  if (!agent)
+    return { valid: false, reason: "Missing agentId", hasSecret: true };
 
-  const t = tenants.data[0];
-  tenantId = t.tenantId;
-  tokens.tenantId = t.tenantId;
-  tokens.tenantName = t.tenantName;
-  saveTokens();
+  const canonical = agent;
 
-  console.log("✅ Refreshed Xero tenant:", tokens.tenantName, tenantId);
-  return tenantId;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(canonical)
+    .digest("base64");
+
+  return {
+    valid: expected === received,
+    canonical,
+    received,
+    expected,
+    area,
+    agentId: agent,
+    hasSecret: true
+  };
 }
 
-// -----------------------------
-// Finance View (Halo iframe)
-// -----------------------------
+// -----------------------------------------------------
+// DEBUG HMAC
+// -----------------------------------------------------
+app.get("/debug-hmac", (req, res) => {
+  const result = validateHaloHmac(req);
+  res.json(result);
+});
+
+// -----------------------------------------------------
+// FINANCE ROUTE (main widget)
+// -----------------------------------------------------
 app.get("/finance", async (req, res) => {
   try {
-    // 1) Validate HMAC from Halo
-    const hmacResult = validateHaloHmac(req);
-    if (!hmacResult.valid) {
-      console.warn("⚠️ Invalid HMAC from Halo:", hmacResult);
-      return res.status(401).send("Unauthorized");
+    const h = validateHaloHmac(req);
+    if (!h.valid) {
+      return res.status(401).json({ error: "Unauthorized (HMAC failed)", ...h });
     }
 
-    // 2) Determine which contact to look up in Xero
-    const area = req.query.area || null; // Halo client name
-    let contactId = req.query.contactId || null;
-    const contactName = area || req.query.contactName || null;
+    const contactName = req.query.area;
+    if (!contactName) return res.status(400).send("Missing area");
 
-    if (!contactId && !contactName) {
-      return res
-        .status(400)
-        .send("Missing contactId or area/contactName for Xero lookup.");
-    }
-
-    const cacheKey = contactId || contactName;
-    const cached = cache.get(cacheKey);
+    const cached = cache.get(contactName);
     if (cached) {
-      return res.render("finance", cached);
+      return res.render("finance", {
+        ...cached,
+        tenantName: tokens.tenantName,
+        agentId: h.agentId,
+        hmac: req.query.hmac || req.query.HMAC,
+        area: contactName
+      });
     }
 
-    // 3) Xero auth
-    const accessToken = await ensureToken();
-    const tenant = await ensureTenantId(accessToken);
+    const token = await ensureToken();
 
     const headers = {
-      Authorization: `Bearer ${accessToken}`,
-      "Xero-tenant-id": tenant,
-      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      "Xero-tenant-id": tokens.tenantId,
+      Accept: "application/json"
     };
 
-    // 4) If we only have the name, resolve it to a ContactID
-    if (!contactId && contactName) {
-      console.log("🔍 Looking up Xero contact by name:", contactName);
-      const safeName = contactName.replace(/"/g, '\\"');
-      const contactResp = await axios.get(
-        `https://api.xero.com/api.xro/2.0/Contacts?where=Name=="${safeName}"`,
-        { headers }
-      );
-      const found = contactResp.data?.Contacts?.[0];
-      if (!found) {
-        console.warn("⚠️ No contact found in Xero for name:", contactName);
-        return res.status(404).send(`No Xero contact found for ${contactName}`);
-      }
-      contactId = found.ContactID;
-      console.log(`✅ Found ContactID ${contactId} for ${contactName}`);
-    }
+    const encodedName = encodeURIComponent(contactName);
 
-    // 5) Fetch invoices & credit notes
-    const invResp = await axios.get(
-      `https://api.xero.com/api.xro/2.0/Invoices?where=Contact.ContactID==Guid("${contactId}")&order=Date DESC`,
+    const contactResp = await axios.get(
+      `https://api.xero.com/api.xro/2.0/Contacts?where=Name=="${encodedName}"`,
       { headers }
     );
-    const crdResp = await axios.get(
-      `https://api.xero.com/api.xro/2.0/CreditNotes?where=Contact.ContactID==Guid("${contactId}")&order=Date DESC`,
+
+    const found = contactResp.data?.Contacts?.[0];
+    if (!found) return res.status(404).send("No matching contact found");
+
+    const contactId = found.ContactID;
+
+    // Exclude voided invoices and credit notes
+    const invoiceWhere = `Contact.ContactID==Guid("${contactId}")&&Status!="VOIDED"`;
+    const creditWhere = `Contact.ContactID==Guid("${contactId}")&&Status!="VOIDED"`;
+
+    const inv = await axios.get(
+      `https://api.xero.com/api.xro/2.0/Invoices?where=${encodeURIComponent(
+        invoiceWhere
+      )}&order=Date DESC`,
+      { headers }
+    );
+
+    const crd = await axios.get(
+      `https://api.xero.com/api.xro/2.0/CreditNotes?where=${encodeURIComponent(
+        creditWhere
+      )}&order=Date DESC`,
       { headers }
     );
 
     const rows = [];
-    let accountBal = 0;
-    let overdueBal = 0;
+    let accountBal = 0,
+      overdueBal = 0;
     const today = new Date();
 
     function pushDocs(list, type) {
       for (const d of list) {
+        const status = d.Status || "";
+        if (status.toUpperCase() === "VOIDED") continue;
+
         const balance = d.AmountDue ?? d.RemainingCredit ?? 0;
         const total = d.Total ?? 0;
 
         if (type === "CreditNote") accountBal -= balance;
         else accountBal += balance;
 
-        if (new Date(d.DueDate) < today && balance > 0) {
-          overdueBal += balance;
-        }
+        if (new Date(d.DueDate) < today && balance > 0) overdueBal += balance;
 
         rows.push({
           name: d.Contact?.Name,
@@ -316,43 +248,176 @@ app.get("/finance", async (req, res) => {
           number: d.InvoiceNumber || d.CreditNoteNumber,
           due: d.DueDateString?.slice(0, 10),
           total: total.toFixed(2),
-          balance: balance.toFixed(2),
+          balance: balance.toFixed(2)
         });
       }
     }
 
-    pushDocs(invResp.data.Invoices || [], "Invoice");
-    pushDocs(crdResp.data.CreditNotes || [], "CreditNote");
+    pushDocs(inv.data.Invoices || [], "Invoice");
+    pushDocs(crd.data.CreditNotes || [], "CreditNote");
+
+    const clientName = rows[0]?.name || contactName;
 
     const data = {
       accountBal: accountBal.toFixed(2),
       overdueBal: overdueBal.toFixed(2),
       rows,
       asAt: new Date().toLocaleString("en-NZ"),
+      clientName,
+      tenantName: tokens.tenantName
     };
 
-    cache.set(cacheKey, data);
-    res.render("finance", data);
-  } catch (err) {
-    console.error(
-      "❌ Finance route error:",
-      err.response?.data || err.message
-    );
-    res.status(500).send("Error fetching Xero data – see logs.");
+    cache.set(contactName, data);
+
+    res.render("finance", {
+      ...data,
+      agentId: h.agentId,
+      hmac: req.query.hmac || req.query.HMAC,
+      area: contactName
+    });
+  } catch (e) {
+    console.error("❌ Finance error:", e.response?.data || e.message);
+    res.status(500).send("Finance fetch error — see logs.");
   }
 });
 
-// -----------------------------
-// Health check
-// -----------------------------
-app.get("/", (_, res) => {
-  res.send("✅ Halo ↔ Xero widget online");
+// -----------------------------------------------------
+// EXPORT PDF
+// -----------------------------------------------------
+app.get("/finance/export-pdf", async (req, res) => {
+  try {
+    const area = req.query.area;
+    const cached = cache.get(area);
+    if (!cached) {
+      return res
+        .status(400)
+        .send(
+          `<html><body>No cached finance data to export.<br><button onclick="history.back()">Back</button></body></html>`
+        );
+    }
+
+    const renderData = {
+      ...cached,
+      tenantName: tokens.tenantName || "Xero",
+      totalAmount: cached.rows
+        .reduce((a, r) => a + parseFloat(r.total), 0)
+        .toFixed(2),
+      totalBalance: cached.rows
+        .reduce((a, r) => a + parseFloat(r.balance), 0)
+        .toFixed(2)
+    };
+
+    const html = await ejs.renderFile(
+      "/opt/halo-xero-widget/views/statement.ejs",
+      renderData
+    );
+
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" }
+    });
+
+    await browser.close();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${cached.clientName.replace(/\s+/g, "_")}_Statement.pdf"`
+    );
+
+    res.send(pdf);
+  } catch (err) {
+    console.error("❌ export-pdf error:", err);
+    res
+      .status(500)
+      .send(
+        `<html><body>Error generating PDF — see logs.<br><button onclick="history.back()">Back</button></body></html>`
+      );
+  }
 });
 
-// -----------------------------
-// Start server
-// -----------------------------
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`🚀 Widget running on port ${port}`);
+// -----------------------------------------------------
+// EXPORT EXCEL
+// -----------------------------------------------------
+app.get("/finance/export-excel", async (req, res) => {
+  try {
+    const area = req.query.area;
+    const cached = cache.get(area);
+    if (!cached) {
+      return res
+        .status(400)
+        .send(
+          `<html><body>No cached finance data to export.<br><button onclick="history.back()">Back</button></body></html>`
+        );
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Statement");
+
+    ws.columns = [
+      { header: "Date", key: "date", width: 15 },
+      { header: "Type", key: "type", width: 15 },
+      { header: "Number", key: "number", width: 15 },
+      { header: "Due Date", key: "due", width: 15 },
+      { header: "Total ($)", key: "total", width: 15 },
+      { header: "Balance ($)", key: "balance", width: 15 }
+    ];
+
+    cached.rows.forEach(r => ws.addRow(r));
+
+    // Totals row
+    const totalAmount = cached.rows.reduce(
+      (a, r) => a + parseFloat(r.total),
+      0
+    );
+    const totalBalance = cached.rows.reduce(
+      (a, r) => a + parseFloat(r.balance),
+      0
+    );
+
+    const totalsRow = ws.addRow({
+      date: "",
+      type: "",
+      number: "",
+      due: "Totals",
+      total: totalAmount.toFixed(2),
+      balance: totalBalance.toFixed(2)
+    });
+    totalsRow.font = { bold: true };
+
+    const buffer = await wb.xlsx.writeBuffer();
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${cached.clientName.replace(/\s+/g, "_")}_Statement.xlsx"`
+    );
+
+    res.send(buffer);
+  } catch (err) {
+    console.error("❌ export-excel error:", err);
+    res
+      .status(500)
+      .send(
+        `<html><body>Error generating Excel — see logs.<br><button onclick="history.back()">Back</button></body></html>`
+      );
+  }
 });
+
+// -----------------------------------------------------
+app.get("/", (_, res) => res.send("✅ Halo ↔ Xero Widget Online"));
+app.listen(process.env.PORT, () =>
+  console.log(`🚀 Widget running on port ${process.env.PORT}`)
+);
