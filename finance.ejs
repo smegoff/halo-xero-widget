@@ -1,21 +1,68 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Halo <> Xero Widget</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Halo <> Xero Widget — <%= clientName %></title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    th.sorted-asc::after  { content: " ?"; color: #2563eb; }
-    th.sorted-desc::after { content: " ?"; color: #2563eb; }
+    th.sorted-asc::after  { content: " ▲"; color: #2563eb; }
+    th.sorted-desc::after { content: " ▼"; color: #2563eb; }
     tr.fade-in { animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   </style>
 </head>
+
 <body class="bg-gray-100 text-gray-800">
   <div class="max-w-6xl mx-auto mt-10 p-6 bg-white shadow-md rounded-xl">
-    <h1 class="text-2xl font-bold mb-2">Client Xero Financial Summary</h1>
-    <p class="text-sm text-gray-500 mb-6">As at <%= asAt %></p>
+
+    <!-- Header: title + buttons -->
+    <div class="flex items-center justify-between mb-2">
+      <div>
+        <h1 class="text-2xl font-bold">
+          Client Xero Financial Summary — <span class="text-blue-600"><%= clientName %></span>
+        </h1>
+        <p class="text-sm text-gray-500">
+          Statement as at <%= asAt %> — Tenant: <%= tenantName || "Xero" %>
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Export buttons (left group) -->
+        <div class="flex gap-2">
+          <a
+            href="/finance/export-excel?area=<%= encodeURIComponent(area || clientName || '') %>"
+            class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-green-600 text-white hover:bg-green-700"
+          >
+            Export Excel
+          </a>
+          <a
+            href="/finance/export-pdf?area=<%= encodeURIComponent(area || clientName || '') %>"
+            class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Export PDF
+          </a>
+        </div>
+
+        <!-- Utility buttons (right group) -->
+        <div class="flex gap-2 ml-4">
+          <button
+            onclick="window.location.reload()"
+            class="px-3 py-1.5 text-sm rounded-md bg-gray-200 hover:bg-gray-300"
+          >
+            Refresh Data
+          </button>
+          <a
+            href="/auth/connect"
+            target="_blank"
+            class="px-3 py-1.5 text-sm rounded-md bg-amber-500 text-white hover:bg-amber-600"
+          >
+            Re-authenticate Xero
+          </a>
+        </div>
+      </div>
+    </div>
 
     <!-- Search bar -->
     <div class="flex items-center justify-between mb-4">
@@ -53,7 +100,16 @@
           <% rows.forEach(r => { %>
           <tr class="border-b hover:bg-gray-50 fade-in">
             <td class="py-2 px-3"><%= r.date %></td>
-            <td class="py-2 px-3"><%= r.type %></td>
+
+            <td class="py-2 px-3 flex items-center gap-2">
+              <%= r.type %>
+              <% if (r.balance === "0.00") { %>
+                <span class="bg-green-100 text-green-700 border border-green-300 text-xs px-2 py-0.5 rounded-full">
+                  PAID
+                </span>
+              <% } %>
+            </td>
+
             <td class="py-2 px-3"><%= r.number %></td>
             <td class="py-2 px-3"><%= r.due %></td>
             <td class="py-2 px-3 text-right"><%= r.total %></td>
@@ -61,6 +117,7 @@
           </tr>
           <% }) %>
         </tbody>
+
         <tfoot class="bg-gray-50 border-t font-semibold">
           <tr>
             <td colspan="3" class="py-2 px-3 text-left">Totals</td>
@@ -75,68 +132,71 @@
 
   <script>
     // --- Search filter ---
-    const searchBox = document.getElementById('searchBox');
-    searchBox.addEventListener('input', function() {
+    const searchBox = document.getElementById("searchBox");
+    searchBox.addEventListener("input", function() {
       const filter = this.value.toLowerCase();
-      const rows = document.querySelectorAll('#invoiceTable tbody tr');
+      const rows = document.querySelectorAll("#invoiceTable tbody tr");
       rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(filter) ? '' : 'none';
+        row.style.display = row.innerText.toLowerCase().includes(filter) ? "" : "none";
       });
       updateTotals();
     });
+
     function clearSearch() {
-      searchBox.value = '';
-      searchBox.dispatchEvent(new Event('input'));
+      searchBox.value = "";
+      searchBox.dispatchEvent(new Event("input"));
     }
 
-    // --- Column sorting with highlight and arrows ---
+    // --- Column sorting ---
     let currentSorted = null;
     let sortDirection = 1;
+
     function sortTable(colIndex) {
-      const table = document.getElementById('invoiceTable');
-      const rows = Array.from(table.querySelectorAll('tbody tr'));
-      const type = colIndex >= 4 ? 'number' : 'string';
-      const headers = table.querySelectorAll('th');
+      const table = document.getElementById("invoiceTable");
+      const rows = Array.from(table.querySelectorAll("tbody tr"));
+      const type = colIndex >= 4 ? "number" : "string";
+      const headers = table.querySelectorAll("th");
 
-      // remove old highlights
-      headers.forEach(h => h.classList.remove('bg-blue-50', 'sorted-asc', 'sorted-desc'));
+      headers.forEach(h => h.classList.remove("bg-blue-50","sorted-asc","sorted-desc"));
 
-      // toggle direction if same column
       if (currentSorted === colIndex) sortDirection *= -1;
       else sortDirection = 1;
 
-      // mark header as active
-      headers[colIndex].classList.add('bg-blue-50');
-      headers[colIndex].classList.add(sortDirection === 1 ? 'sorted-asc' : 'sorted-desc');
+      headers[colIndex].classList.add("bg-blue-50");
+      headers[colIndex].classList.add(sortDirection === 1 ? "sorted-asc" : "sorted-desc");
       currentSorted = colIndex;
 
       rows.sort((a, b) => {
-        const cellA = a.children[colIndex].innerText.trim();
-        const cellB = b.children[colIndex].innerText.trim();
-        if (type === 'number') {
-          return (parseFloat(cellA) - parseFloat(cellB)) * sortDirection;
-        } else {
-          return cellA.localeCompare(cellB) * sortDirection;
-        }
+        const A = a.children[colIndex].innerText.replace(/[$,]/g, "");
+        const B = b.children[colIndex].innerText.replace(/[$,]/g, "");
+        return sortDirection === 1
+          ? A.localeCompare(B, undefined, { numeric: true })
+          : B.localeCompare(A, undefined, { numeric: true });
       });
-      rows.forEach(r => table.querySelector('tbody').appendChild(r));
+
+      rows.forEach(r => table.querySelector("tbody").appendChild(r));
       updateTotals();
     }
 
-    // --- Totals calculation ---
+    // --- Totals ---
     function updateTotals() {
-      const visibleRows = Array.from(document.querySelectorAll('#invoiceTable tbody tr'))
-        .filter(r => r.style.display !== 'none');
+      const visibleRows = Array.from(
+        document.querySelectorAll("#invoiceTable tbody tr")
+      ).filter(r => r.style.display !== "none");
+
       const totals = visibleRows.reduce((acc, row) => {
         const total = parseFloat(row.children[4].innerText) || 0;
         const balance = parseFloat(row.children[5].innerText) || 0;
-        acc.total += total; acc.balance += balance; return acc;
+        acc.total += total;
+        acc.balance += balance;
+        return acc;
       }, { total: 0, balance: 0 });
-      document.getElementById('invoiceCount').textContent = visibleRows.length + ' items';
-      document.getElementById('totalSum').textContent = '$' + totals.total.toFixed(2);
-      document.getElementById('balanceSum').textContent = '$' + totals.balance.toFixed(2);
+
+      document.getElementById("invoiceCount").textContent = visibleRows.length + " items";
+      document.getElementById("totalSum").textContent = "$" + totals.total.toFixed(2);
+      document.getElementById("balanceSum").textContent = "$" + totals.balance.toFixed(2);
     }
+
     updateTotals();
   </script>
 </body>
