@@ -348,6 +348,7 @@ app.get("/finance", async (req, res) => {
       area: haloClientName,
       cacheStatus,
       cacheTtlSeconds: runtimeConfig.financeCacheTtlSeconds,
+      cacheTtlHuman: runtimeConfig.financeCacheTtlHuman,
       cacheKey,
       exportToken
     });

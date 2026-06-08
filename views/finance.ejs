@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Halo <> Xero Widget — <%= clientName %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -22,7 +25,7 @@
     }
 
     body {
-      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      font-family: Roboto, "Segoe UI", Arial, sans-serif;
       background: var(--halo-bg);
       color: var(--halo-text);
       font-size: 14px;
@@ -114,7 +117,7 @@
 <!-- Disclaimer -->
 <div class="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
   <p class="text-[13px] leading-relaxed">
-    <strong>This is an exact view of the client account in Xero.</strong>
+    <strong>This is an exact view of the client account in Xero (Cached for <%= cacheTtlHuman || `${cacheTtlSeconds} seconds` %>).</strong>
     Payments received in the last <strong>24 hours</strong> may not appear until the next business day due to bank and Xero processing times.
   </p>
 </div>
