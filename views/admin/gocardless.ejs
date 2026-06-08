@@ -187,80 +187,16 @@
             Failed payments, problem mandates, and duplicate-looking customer records.
           </p>
         </div>
+        <a
+          href="/admin/gocardless/exceptions"
+          class="inline-flex shrink-0 rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]"
+        >
+          View Exceptions
+        </a>
       </div>
-
-      <% if (!goCardlessAnomalies?.configured) { %>
-        <div class="text-sm text-slate-500">Configure the GoCardless token to load exceptions.</div>
-      <% } else { %>
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
-            <h3 class="font-semibold text-sm mb-3">Problem Payments</h3>
-            <% if (!goCardlessAnomalies.problemPayments.length) { %>
-              <div class="text-sm text-slate-500">No failed or cancelled payments found in the latest scan.</div>
-            <% } %>
-            <div class="space-y-2">
-              <% goCardlessAnomalies.problemPayments.forEach(item => { %>
-                <div class="rounded-md border border-rose-100 bg-white p-3 text-xs">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-semibold text-rose-700"><%= item.statusLabel %></span>
-                    <span class="text-slate-500"><%= item.date || "No date" %></span>
-                  </div>
-                  <div class="mt-1 break-all text-slate-600">Payment: <%= item.paymentId %></div>
-                  <% if (item.customerId) { %>
-                    <div class="break-all text-slate-500">Customer: <%= item.customerId %></div>
-                  <% } %>
-                </div>
-              <% }) %>
-            </div>
-          </div>
-
-          <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
-            <h3 class="font-semibold text-sm mb-3">Problem Mandates</h3>
-            <% if (!goCardlessAnomalies.problemMandates.length) { %>
-              <div class="text-sm text-slate-500">No failed, expired, or cancelled mandates found in the latest scan.</div>
-            <% } %>
-            <div class="space-y-2">
-              <% goCardlessAnomalies.problemMandates.forEach(item => { %>
-                <div class="rounded-md border border-amber-100 bg-white p-3 text-xs">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-semibold <%= item.severity === 'error' ? 'text-rose-700' : 'text-amber-800' %>"><%= item.statusLabel %></span>
-                    <span class="text-slate-500"><%= item.date || "No date" %></span>
-                  </div>
-                  <div class="mt-1 break-all text-slate-600">Mandate: <%= item.mandateId %></div>
-                  <% if (item.reference) { %>
-                    <div class="break-all text-slate-500">Reference: <%= item.reference %></div>
-                  <% } %>
-                  <% if (item.customerId) { %>
-                    <div class="break-all text-slate-500">Customer: <%= item.customerId %></div>
-                  <% } %>
-                </div>
-              <% }) %>
-            </div>
-          </div>
-
-          <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
-            <h3 class="font-semibold text-sm mb-3">Possible Duplicate Customers</h3>
-            <% if (!goCardlessAnomalies.duplicateCustomerGroups.length) { %>
-              <div class="text-sm text-slate-500">No duplicate-looking customers found in the latest scan.</div>
-            <% } %>
-            <div class="space-y-2">
-              <% goCardlessAnomalies.duplicateCustomerGroups.forEach(group => { %>
-                <div class="rounded-md border border-slate-200 bg-white p-3 text-xs">
-                  <div class="font-semibold text-slate-800"><%= group[0]?.name || "Unnamed customer" %></div>
-                  <% group.forEach(customer => { %>
-                    <div class="mt-1 break-all text-slate-600">
-                      <%= customer.id %>
-                      <% if (customer.metadataKeys.length) { %>
-                        · metadata: <%= customer.metadataKeys.join(", ") %>
-                      <% } %>
-                    </div>
-                  <% }) %>
-                </div>
-              <% }) %>
-            </div>
-          </div>
-        </div>
-      <% } %>
+      <p class="text-sm text-slate-500">
+        Opens a dedicated page and runs the latest exceptions scan on demand.
+      </p>
     </div>
 
     <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 mb-6">

@@ -428,20 +428,12 @@ app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
 app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
   try {
     const runtimeConfig = getRuntimeConfig();
-    const [mappings, haloMatches, goCardlessMatches, goCardlessAnomalies] = await Promise.all([
+    const [mappings, haloMatches, goCardlessMatches] = await Promise.all([
       listGoCardlessMappings(),
       searchMappedHaloClients(req.query.halo || ""),
       runtimeConfig.goCardlessAccessTokenConfigured
         ? searchGoCardlessCustomersWithMandates(req.query.gc || "")
-        : Promise.resolve([]),
-      runtimeConfig.goCardlessAccessTokenConfigured
-        ? getGoCardlessAdminAnomalies()
-        : Promise.resolve({
-            configured: false,
-            problemMandates: [],
-            problemPayments: [],
-            duplicateCustomerGroups: []
-          })
+        : Promise.resolve([])
     ]);
 
     res.render("admin/gocardless", {
@@ -449,7 +441,6 @@ app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
       mappings,
       haloMatches,
       goCardlessMatches,
-      goCardlessAnomalies,
       haloQuery: req.query.halo || "",
       goCardlessQuery: req.query.gc || "",
       flash: popAdminFlash(req)
@@ -457,6 +448,29 @@ app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
   } catch (err) {
     console.error("❌ admin/gocardless error", err);
     res.status(500).send("Failed to load GoCardless settings");
+  }
+});
+
+app.get("/admin/gocardless/exceptions", requireAdminAuth, async (req, res) => {
+  try {
+    const runtimeConfig = getRuntimeConfig();
+    const goCardlessAnomalies = runtimeConfig.goCardlessAccessTokenConfigured
+      ? await getGoCardlessAdminAnomalies()
+      : {
+          configured: false,
+          problemMandates: [],
+          problemPayments: [],
+          duplicateCustomerGroups: []
+        };
+
+    res.render("admin/gocardless-exceptions", {
+      runtimeConfig,
+      goCardlessAnomalies,
+      flash: popAdminFlash(req)
+    });
+  } catch (err) {
+    console.error("❌ admin/gocardless/exceptions error", err.response?.status || err.message);
+    res.status(500).send("Failed to load GoCardless exceptions");
   }
 });
 

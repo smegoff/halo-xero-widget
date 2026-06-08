@@ -79,6 +79,10 @@ Halo client, and maintaining manual Xero GUID to GoCardless customer mappings.
 The `.env` token remains the default; an admin-entered token is stored in the
 runtime config override file and is used immediately.
 
+GoCardless exceptions are available separately at
+`/admin/gocardless/exceptions`, covering failed payments, problem mandates, and
+duplicate-looking customer records.
+
 The admin service also runs the same safe auto-map in the background. By default
 it starts 60 seconds after the admin process boots and then repeats every 6
 hours. The interval can be changed in **Runtime Configuration** or by setting
