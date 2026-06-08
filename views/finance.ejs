@@ -7,31 +7,116 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    th.sorted-asc::after  { content: " ▲"; color: #2563eb; }
-    th.sorted-desc::after { content: " ▼"; color: #2563eb; }
-    tr.fade-in { animation: fadeIn 0.3s ease-in-out; }
+    :root {
+      --halo-teal: #0b7f7d;
+      --halo-blue: #1f75bb;
+      --halo-bg: #f3f6fa;
+      --halo-line: #dbe3ec;
+      --halo-text: #0f172a;
+      --halo-muted: #64748b;
+    }
+
+    body {
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      background: var(--halo-bg);
+      color: var(--halo-text);
+      font-size: 14px;
+    }
+
+    .halo-shell {
+      width: 100%;
+      min-height: 100vh;
+      padding: 14px 16px 18px;
+    }
+
+    .halo-panel {
+      background: #ffffff;
+      border: 1px solid var(--halo-line);
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+    }
+
+    .halo-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 7px 13px;
+      border-radius: 16px;
+      border: 1px solid #d8e1eb;
+      background: #ffffff;
+      color: #1f2937;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .halo-btn:hover {
+      background: #f8fafc;
+      border-color: #c9d4e0;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+    }
+
+    .halo-btn-primary {
+      background: var(--halo-teal);
+      border-color: var(--halo-teal);
+      color: #ffffff;
+    }
+
+    .halo-btn-primary:hover {
+      background: #096f6d;
+      border-color: #096f6d;
+    }
+
+    .halo-btn-danger {
+      background: #ffffff;
+      border-color: #f1c7c7;
+      color: #b42318;
+    }
+
+    .halo-input {
+      height: 34px;
+      border: 1px solid #d8e1eb;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #334155;
+      font-size: 13px;
+      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .halo-input:focus {
+      outline: 2px solid rgba(31, 117, 187, 0.18);
+      border-color: var(--halo-blue);
+    }
+
+    th.sorted-asc::after  { content: " ▲"; color: var(--halo-blue); font-size: 10px; }
+    th.sorted-desc::after { content: " ▼"; color: var(--halo-blue); font-size: 10px; }
+    tr.fade-in { animation: fadeIn 0.18s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   </style>
 </head>
 
-<body class="bg-gray-100 text-gray-800">
-  <div class="max-w-6xl mx-auto mt-10 p-6 bg-white shadow-md rounded-xl">
+<body>
+  <div class="halo-shell">
+    <div class="halo-panel p-5">
 
 <!-- Disclaimer -->
-<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
-  <p class="text-sm leading-relaxed">
+<div class="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+  <p class="text-[13px] leading-relaxed">
     <strong>This is an exact view of the client account in Xero.</strong>
     Payments received in the last <strong>24 hours</strong> may not appear until the next business day due to bank and Xero processing times.
   </p>
 </div>
 
     <!-- Header row: title + refresh -->
-    <div class="flex items-start justify-between mb-2">
-      <div>
-        <h1 class="text-2xl font-bold mb-1">
-          Client Xero Financial Summary — <span class="text-blue-700"><%= clientName %></span>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mb-4">
+      <div class="min-w-0">
+        <h1 class="text-[21px] font-semibold leading-tight text-slate-900 mb-1">
+          Client Xero Financial Summary - <span class="text-[#174ea6]"><%= clientName %></span>
         </h1>
-        <p class="text-sm text-gray-500">
+        <p class="text-[13px] text-slate-500">
           As at <%= asAt %> — Tenant: <%= tenantName || "Xero" %>
           <% if (cacheStatus === "hit" || cacheStatus === "shared") { %>
             — Cached
@@ -42,7 +127,7 @@
       <div class="flex items-center gap-2">
         <a
           href="/finance?area=<%= encodeURIComponent(area || clientName || '') %>&agentId=<%= agentId || '' %>&hmac=<%= encodeURIComponent(hmac || '') %>&refresh=1"
-          class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+          class="halo-btn halo-btn-primary"
         >
           Refresh
         </a>
@@ -50,41 +135,41 @@
     </div>
 
     <!-- Export buttons row -->
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex gap-2">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-4">
+      <div class="flex flex-wrap gap-2">
         <a
           href="/finance/export-excel?key=<%= encodeURIComponent(cacheKey || '') %>&agentId=<%= encodeURIComponent(agentId || '') %>&token=<%= encodeURIComponent(exportToken || '') %>"
-          class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-green-600 text-white hover:bg-green-700"
+          class="halo-btn"
         >
           Export Excel
         </a>
         <a
           href="/finance/export-pdf?key=<%= encodeURIComponent(cacheKey || '') %>&agentId=<%= encodeURIComponent(agentId || '') %>&token=<%= encodeURIComponent(exportToken || '') %>"
-          class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+          class="halo-btn halo-btn-danger"
         >
           Export PDF
         </a>
       </div>
 
       <!-- Search + outstanding toggle -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2 lg:justify-end">
         <input
           id="searchBox"
           type="text"
           placeholder="Search invoices..."
-          class="w-48 md:w-64 border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 px-3 py-2"
+          class="halo-input w-full sm:w-48 md:w-64 px-3"
         />
         <button
           onclick="clearSearch()"
-          class="bg-gray-200 hover:bg-gray-300 text-sm px-3 py-2 rounded"
+          class="halo-btn"
         >
           Clear
         </button>
-        <label class="flex items-center gap-1 text-sm text-gray-700">
+        <label class="flex w-full sm:w-auto items-center gap-1 text-[13px] text-slate-700 whitespace-nowrap">
           <input
             id="outstandingToggle"
             type="checkbox"
-            class="rounded border-gray-300"
+            class="rounded border-slate-300"
           />
           Outstanding only
         </label>
@@ -92,44 +177,44 @@
     </div>
 
     <!-- Account balances -->
-    <div class="grid grid-cols-2 gap-4 mb-6">
-      <div class="p-4 bg-blue-50 rounded-xl text-center">
-        <div class="text-sm text-gray-500">Account Balance</div>
-        <div class="text-xl font-semibold text-blue-700">$<%= accountBal %></div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      <div class="px-4 py-3 bg-[#eef5fd] border border-[#dceaf8] rounded-md text-center">
+        <div class="text-[13px] text-slate-500">Account Balance</div>
+        <div class="text-[20px] font-semibold text-[#174ea6]">$<%= accountBal %></div>
       </div>
-      <div class="p-4 bg-red-50 rounded-xl text-center">
-        <div class="text-sm text-gray-500">Overdue Balance</div>
-        <div class="text-xl font-semibold text-red-700">$<%= overdueBal %></div>
+      <div class="px-4 py-3 bg-[#fff1f1] border border-[#f3d9d9] rounded-md text-center">
+        <div class="text-[13px] text-slate-500">Overdue Balance</div>
+        <div class="text-[20px] font-semibold text-[#b42318]">$<%= overdueBal %></div>
       </div>
     </div>
 
     <!-- Invoice table -->
-    <div class="overflow-x-auto">
-      <table id="invoiceTable" class="min-w-full border border-gray-200 rounded-lg overflow-hidden">
-        <thead class="bg-gray-100 border-b border-gray-200 select-none">
+    <div class="overflow-x-auto rounded-md border border-slate-200">
+      <table id="invoiceTable" class="min-w-full">
+        <thead class="bg-[#f4f6f8] border-b border-slate-200 select-none">
           <tr>
-            <th onclick="sortTable(0)" class="py-2 px-3 text-left cursor-pointer">Date</th>
-            <th onclick="sortTable(1)" class="py-2 px-3 text-left cursor-pointer">Type</th>
-            <th onclick="sortTable(2)" class="py-2 px-3 text-left cursor-pointer">Number</th>
-            <th onclick="sortTable(3)" class="py-2 px-3 text-left cursor-pointer">Due Date</th>
-            <th onclick="sortTable(4)" class="py-2 px-3 text-left cursor-pointer">Age</th>
-            <th onclick="sortTable(5)" class="py-2 px-3 text-right cursor-pointer">Total ($)</th>
-            <th onclick="sortTable(6)" class="py-2 px-3 text-right cursor-pointer">Due ($)</th>
+            <th onclick="sortTable(0)" class="py-2.5 px-3 text-left cursor-pointer text-[13px] font-semibold text-slate-800">Date</th>
+            <th onclick="sortTable(1)" class="py-2.5 px-3 text-left cursor-pointer text-[13px] font-semibold text-slate-800">Type</th>
+            <th onclick="sortTable(2)" class="py-2.5 px-3 text-left cursor-pointer text-[13px] font-semibold text-slate-800">Number</th>
+            <th onclick="sortTable(3)" class="py-2.5 px-3 text-left cursor-pointer text-[13px] font-semibold text-slate-800">Due Date</th>
+            <th onclick="sortTable(4)" class="py-2.5 px-3 text-left cursor-pointer text-[13px] font-semibold text-slate-800">Age</th>
+            <th onclick="sortTable(5)" class="py-2.5 px-3 text-right cursor-pointer text-[13px] font-semibold text-slate-800">Total ($)</th>
+            <th onclick="sortTable(6)" class="py-2.5 px-3 text-right cursor-pointer text-[13px] font-semibold text-slate-800">Due ($)</th>
           </tr>
         </thead>
 
         <tbody>
           <% rows.forEach(r => { %>
-          <tr class="border-b hover:bg-gray-50 fade-in">
-            <td class="py-2 px-3"><%= r.date %></td>
-            <td class="py-2 px-3"><%= r.type %></td>
-            <td class="py-2 px-3"><%= r.number %></td>
-            <td class="py-2 px-3"><%= r.due %></td>
+          <tr class="border-b border-slate-100 hover:bg-[#f7fafc] fade-in text-[13px]">
+            <td class="py-2.5 px-3"><%= r.date %></td>
+            <td class="py-2.5 px-3"><%= r.type %></td>
+            <td class="py-2.5 px-3"><%= r.number %></td>
+            <td class="py-2.5 px-3"><%= r.due %></td>
 
-            <td class="py-2 px-3"><%= r.ageBucket || "" %></td>
+            <td class="py-2.5 px-3"><%= r.ageBucket || "" %></td>
 
             <!-- TOTAL with Xero formatting -->
-            <td class="py-2 px-3 text-right" data-value="<%= r.total %>">
+            <td class="py-2.5 px-3 text-right" data-value="<%= r.total %>">
               <% if (r.total < 0) { %>
                 <span class="text-green-700">(<%= Math.abs(r.total).toFixed(2) %>)</span>
               <% } else { %>
@@ -138,7 +223,7 @@
             </td>
 
             <!-- BALANCE with Xero formatting -->
-            <td class="py-2 px-3 text-right" data-value="<%= r.balance %>">
+            <td class="py-2.5 px-3 text-right" data-value="<%= r.balance %>">
               <% if (r.balance < 0) { %>
                 <span class="text-green-700">(<%= Math.abs(r.balance).toFixed(2) %>)</span>
               <% } else { %>
@@ -155,16 +240,17 @@
           <% }) %>
         </tbody>
 
-        <tfoot class="bg-gray-50 border-t font-semibold">
+        <tfoot class="bg-[#f8fafc] border-t border-slate-200 font-semibold text-[13px]">
           <tr>
-            <td colspan="4" class="py-2 px-3 text-left">Totals</td>
-            <td id="invoiceCount" class="py-2 px-3 text-left text-gray-600"></td>
-            <td id="totalSum" class="py-2 px-3 text-right text-blue-700"></td>
-            <td id="balanceSum" class="py-2 px-3 text-right text-red-700"></td>
+            <td colspan="4" class="py-2.5 px-3 text-left">Totals</td>
+            <td id="invoiceCount" class="py-2.5 px-3 text-left text-slate-600"></td>
+            <td id="totalSum" class="py-2.5 px-3 text-right text-[#174ea6]"></td>
+            <td id="balanceSum" class="py-2.5 px-3 text-right text-[#b42318]"></td>
           </tr>
         </tfoot>
 
       </table>
+    </div>
     </div>
   </div>
 
