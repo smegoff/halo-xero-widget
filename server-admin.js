@@ -108,6 +108,47 @@ function popAdminFlash(req) {
   };
 }
 
+let goCardlessAutoMapRunning = false;
+
+async function runGoCardlessAutoMap(reason = "scheduled") {
+  const runtimeConfig = getRuntimeConfig();
+  if (!runtimeConfig.goCardlessAccessTokenConfigured) {
+    console.log("GoCardless auto-map skipped: token is not configured.");
+    return;
+  }
+
+  if (goCardlessAutoMapRunning) {
+    console.log("GoCardless auto-map skipped: previous run is still active.");
+    return;
+  }
+
+  goCardlessAutoMapRunning = true;
+  try {
+    const result = await autoMapGoCardlessCustomersByXeroGuid();
+    console.log("GoCardless auto-map complete", {
+      reason,
+      activeMandatesScanned: result.activeMandatesScanned,
+      candidatesFound: result.candidatesFound,
+      mappingsCreated: result.mappingsCreated,
+      skipped: result.skipped
+    });
+  } catch (err) {
+    console.warn("GoCardless auto-map failed:", err.response?.status || err.message);
+  } finally {
+    goCardlessAutoMapRunning = false;
+  }
+}
+
+function scheduleGoCardlessAutoMap(delaySeconds, reason) {
+  const timer = setTimeout(async () => {
+    await runGoCardlessAutoMap(reason);
+    const runtimeConfig = getRuntimeConfig();
+    scheduleGoCardlessAutoMap(runtimeConfig.goCardlessAutoMapIntervalSeconds, "scheduled");
+  }, delaySeconds * 1000);
+
+  timer.unref();
+}
+
 function tailLines(filePath, maxLines = 200) {
   try {
     if (!fs.existsSync(filePath)) return [];
@@ -365,11 +406,12 @@ app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
   try {
     const runtimeConfig = updateRuntimeConfig({
       financeCacheTtlSeconds: req.body.financeCacheTtlSeconds,
-      exportTokenTtlSeconds: req.body.exportTokenTtlSeconds
+      exportTokenTtlSeconds: req.body.exportTokenTtlSeconds,
+      goCardlessAutoMapIntervalSeconds: req.body.goCardlessAutoMapIntervalSeconds
     });
 
     req.session.flash = {
-      success: `Runtime configuration saved. Finance cache TTL is ${runtimeConfig.financeCacheTtlHuman}; export links expire after ${runtimeConfig.exportTokenTtlHuman}.`
+      success: `Runtime configuration saved. Finance cache TTL is ${runtimeConfig.financeCacheTtlHuman}; export links expire after ${runtimeConfig.exportTokenTtlHuman}; GoCardless auto-map runs every ${runtimeConfig.goCardlessAutoMapIntervalHuman}.`
     };
   } catch (err) {
     req.session.flash = {
@@ -654,6 +696,7 @@ const ADMIN_PORT = Number(process.env.ADMIN_PORT || 3001);
 
 app.listen(ADMIN_PORT, () => {
   console.log(`🚀 Admin portal running on port ${ADMIN_PORT}`);
+  scheduleGoCardlessAutoMap(60, "startup");
 });
 
 // -------------------------------------------------

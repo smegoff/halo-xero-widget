@@ -206,9 +206,15 @@
         <h2 class="text-[15px] font-semibold text-slate-900">GoCardless Direct Debit</h2>
 
         <% if (goCardless?.mapped && goCardless?.state === "ok" && goCardless?.hasActiveMandate) { %>
-          <span class="inline-flex items-center justify-center rounded-full border border-[#b6dcda] bg-[#e6f4f3] px-3 py-1 text-[13px] font-semibold text-[#087f7b]">
+          <a
+            href="<%= goCardless.activeMandateUrl || goCardless.customerUrl || '#' %>"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center justify-center rounded-full border border-[#b6dcda] bg-[#e6f4f3] px-3 py-1 text-[13px] font-semibold text-[#087f7b] hover:bg-[#d7eeec] focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20"
+            aria-label="Open GoCardless mandate"
+          >
             Mandate Active
-          </span>
+          </a>
         <% } else if (goCardless?.mapped && goCardless?.state === "ok") { %>
           <span class="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[13px] font-semibold text-amber-800">
             Mandate Not Active

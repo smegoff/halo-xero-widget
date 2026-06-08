@@ -68,6 +68,7 @@ Required `.env` values:
 ```env
 GOCARDLESS_ACCESS_TOKEN=
 GOCARDLESS_ENVIRONMENT=live
+GOCARDLESS_AUTO_MAP_INTERVAL_SECONDS=21600
 ```
 
 The admin console includes **GoCardless Settings** for testing the live API,
@@ -77,6 +78,16 @@ GUID or when an active GoCardless customer name exactly matches one unambiguous
 Halo client, and maintaining manual Xero GUID to GoCardless customer mappings.
 The `.env` token remains the default; an admin-entered token is stored in the
 runtime config override file and is used immediately.
+
+The admin service also runs the same safe auto-map in the background. By default
+it starts 60 seconds after the admin process boots and then repeats every 6
+hours. The interval can be changed in **Runtime Configuration** or by setting
+`GOCARDLESS_AUTO_MAP_INTERVAL_SECONDS`. The finance tab still performs an
+opportunistic exact-name auto-map when a client is opened, so new clients do not
+have to wait for the next scheduled scan.
+
+When a mapped customer has an active mandate, the finance tab's **Mandate
+Active** badge links to the GoCardless mandate in the live or sandbox dashboard.
 
 ## Halo Tab URL
 
