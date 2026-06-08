@@ -56,6 +56,26 @@ Invoice numbers link to the matching customer-facing Xero online invoice when
 Xero provides an `OnlineInvoiceUrl`. These links use `in.xero.com` and open the
 same invoice view sent to customers, including any configured payment options.
 
+## GoCardless Direct Debit
+
+The finance tab can show a compact GoCardless Direct Debit summary below the
+Xero balance cards. It is anchored by Xero Contact GUID, using
+`halo.gocardless_customer_map` to map each Xero contact to a GoCardless customer
+ID.
+
+Required `.env` values:
+
+```env
+GOCARDLESS_ACCESS_TOKEN=
+GOCARDLESS_ENVIRONMENT=live
+```
+
+The admin console includes **GoCardless Settings** for testing the live API,
+updating the token override, searching Halo/Xero clients and GoCardless
+customers, and maintaining Xero GUID to GoCardless customer mappings. The `.env`
+token remains the default; an admin-entered token is stored in the runtime
+config override file and is used immediately.
+
 ## Halo Tab URL
 
 ```text

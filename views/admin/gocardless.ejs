@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GoCardless Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+  <div class="max-w-6xl mx-auto">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-[24px] font-semibold tracking-tight">GoCardless Settings</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          Configure live API access and map Xero Contact GUIDs to GoCardless customer IDs.
+        </p>
+      </div>
+      <a href="/admin" class="inline-flex px-4 py-2 rounded-full bg-white border border-[#dbe3ec] text-sm font-medium hover:bg-[#f6fbfb]">
+        Back to Admin
+      </a>
+    </div>
+
+    <% if (flash?.success) { %>
+      <div class="mb-4 rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
+        <%= flash.success %>
+      </div>
+    <% } %>
+
+    <% if (flash?.error) { %>
+      <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <%= flash.error %>
+      </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 lg:col-span-2">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-xl font-semibold">Live API Token</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              The token is never displayed after saving.
+            </p>
+          </div>
+          <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+            <%= runtimeConfig.goCardlessAccessTokenConfigured ? 'bg-[#e6f4f3] text-[#087f7b]' : 'bg-amber-100 text-amber-800' %>">
+            <%= runtimeConfig.goCardlessAccessTokenConfigured ? 'Configured' : 'Missing' %>
+          </span>
+        </div>
+
+        <form method="POST" action="/admin/gocardless/token" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+          <input
+            type="password"
+            name="goCardlessAccessToken"
+            autocomplete="new-password"
+            placeholder="Paste new GoCardless live access token"
+            required
+            class="w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+          />
+          <button type="submit" class="inline-flex justify-center px-4 py-2 rounded-full bg-[#087f7b] text-white text-sm font-medium hover:bg-[#066b68]">
+            Save Token
+          </button>
+        </form>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+          <span>Source: <span class="font-medium"><%= runtimeConfig.goCardlessAccessTokenSource %></span></span>
+          <span>Environment: <span class="font-medium"><%= runtimeConfig.goCardlessEnvironment %></span></span>
+          <% if (runtimeConfig.goCardlessTokenUpdatedAt) { %>
+            <span>Override updated: <span class="font-medium"><%= runtimeConfig.goCardlessTokenUpdatedAt %></span></span>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold mb-4">Actions</h2>
+        <div class="space-y-3">
+          <a href="/admin/gocardless/test" class="block w-full rounded-lg border border-[#dbe3ec] px-4 py-3 text-sm font-medium hover:bg-[#f6fbfb]">
+            Test GoCardless API
+          </a>
+          <form method="POST" action="/admin/gocardless/token/clear" onsubmit="return confirm('Clear only the admin override? The .env token will still be used if it exists.');">
+            <button type="submit" class="block w-full rounded-lg border border-[#f3c5c7] px-4 py-3 text-left text-sm font-medium text-rose-700 hover:bg-rose-50">
+              Clear Admin Token Override
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold">Find Halo/Xero Client</h2>
+        <form method="GET" action="/admin/gocardless" class="mt-4 flex gap-2">
+          <input
+            name="halo"
+            value="<%= haloQuery %>"
+            placeholder="Search Halo client, Xero name, or Xero GUID"
+            class="min-w-0 flex-1 rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+          />
+          <input type="hidden" name="gc" value="<%= goCardlessQuery %>" />
+          <button class="rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">Search</button>
+        </form>
+
+        <div class="mt-4 space-y-2">
+          <% if (haloMatches.length === 0 && haloQuery) { %>
+            <div class="text-sm text-slate-500">No matching mapped Halo clients.</div>
+          <% } %>
+          <% haloMatches.forEach(client => { %>
+            <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-3 text-sm">
+              <div class="font-medium"><%= client.halo_client_name %></div>
+              <div class="text-xs text-slate-500 break-all">Xero GUID: <%= client.xero_contact_guid %></div>
+              <% if (client.xero_client_name && client.xero_client_name !== client.halo_client_name) { %>
+                <div class="text-xs text-slate-500">Xero: <%= client.xero_client_name %></div>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold">Find GoCardless Customer</h2>
+        <form method="GET" action="/admin/gocardless" class="mt-4 flex gap-2">
+          <input type="hidden" name="halo" value="<%= haloQuery %>" />
+          <input
+            name="gc"
+            value="<%= goCardlessQuery %>"
+            placeholder="Search GoCardless name, email, ID, or metadata"
+            class="min-w-0 flex-1 rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+          />
+          <button class="rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">Search</button>
+        </form>
+
+        <div class="mt-4 space-y-2">
+          <% if (!runtimeConfig.goCardlessAccessTokenConfigured) { %>
+            <div class="text-sm text-slate-500">Configure the GoCardless token before searching.</div>
+          <% } else if (goCardlessMatches.length === 0 && goCardlessQuery) { %>
+            <div class="text-sm text-slate-500">No matching GoCardless customers.</div>
+          <% } %>
+          <% goCardlessMatches.forEach(customer => { %>
+            <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-3 text-sm">
+              <div class="font-medium"><%= customer.name || customer.id %></div>
+              <div class="text-xs text-slate-500 break-all">Customer ID: <%= customer.id %></div>
+              <% if (customer.email) { %>
+                <div class="text-xs text-slate-500 break-all">Email: <%= customer.email %></div>
+              <% } %>
+              <% if (Object.keys(customer.metadata || {}).length) { %>
+                <div class="text-xs text-slate-500 break-all">
+                  Metadata:
+                  <% Object.entries(customer.metadata).forEach(([key, value], index) => { %>
+                    <%= index ? " · " : "" %><%= key %>: <%= value %>
+                  <% }) %>
+                </div>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 mb-6">
+      <h2 class="text-xl font-semibold">Add or Update Mapping</h2>
+      <form method="POST" action="/admin/gocardless/mappings" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="block">
+          <span class="text-sm text-slate-500">Xero Contact GUID</span>
+          <input name="xeroContactGuid" required placeholder="00000000-0000-0000-0000-000000000000" class="mt-1 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]" />
+        </label>
+        <label class="block">
+          <span class="text-sm text-slate-500">GoCardless Customer ID</span>
+          <input name="goCardlessCustomerId" required placeholder="CU..." class="mt-1 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]" />
+        </label>
+        <label class="block">
+          <span class="text-sm text-slate-500">Display Name</span>
+          <input name="haloClientName" placeholder="Optional label" class="mt-1 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]" />
+        </label>
+        <label class="block">
+          <span class="text-sm text-slate-500">Notes</span>
+          <input name="notes" placeholder="Optional" class="mt-1 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]" />
+        </label>
+        <div class="md:col-span-2 flex justify-end">
+          <button type="submit" class="rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+            Save Mapping
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+      <h2 class="text-xl font-semibold mb-4">Current Mappings</h2>
+      <% if (mappings.length === 0) { %>
+        <div class="text-sm text-slate-500">No GoCardless mappings have been added yet.</div>
+      <% } else { %>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-[#f4f6f8] border-b border-[#dbe3ec]">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold">Client</th>
+                <th class="px-3 py-2 text-left font-semibold">Xero Contact GUID</th>
+                <th class="px-3 py-2 text-left font-semibold">GoCardless ID</th>
+                <th class="px-3 py-2 text-left font-semibold">Updated</th>
+                <th class="px-3 py-2 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% mappings.forEach(mapping => { %>
+                <tr class="border-b border-slate-100">
+                  <td class="px-3 py-2"><%= mapping.halo_client_name || mapping.xero_client_name || "Unlabelled" %></td>
+                  <td class="px-3 py-2 break-all text-xs text-slate-600"><%= mapping.xero_contact_guid %></td>
+                  <td class="px-3 py-2 font-medium"><%= mapping.gocardless_customer_id %></td>
+                  <td class="px-3 py-2 text-xs text-slate-500"><%= mapping.updated_at %></td>
+                  <td class="px-3 py-2 text-right">
+                    <form method="POST" action="/admin/gocardless/mappings/delete" onsubmit="return confirm('Remove this mapping?');">
+                      <input type="hidden" name="xeroContactGuid" value="<%= mapping.xero_contact_guid %>" />
+                      <button class="text-sm font-medium text-rose-700 hover:underline">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

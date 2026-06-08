@@ -13,7 +13,19 @@ import fs from "fs";
 import { pgPool } from "./lib/db.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { runSync } from "./scripts/sync-xero-contacts.js";
-import { getRuntimeConfig, updateRuntimeConfig } from "./lib/config.js";
+import {
+  clearGoCardlessAccessTokenOverride,
+  getRuntimeConfig,
+  updateGoCardlessAccessToken,
+  updateRuntimeConfig
+} from "./lib/config.js";
+import { searchGoCardlessCustomers, testGoCardlessConnection } from "./lib/gocardless.js";
+import {
+  deleteGoCardlessMapping,
+  listGoCardlessMappings,
+  searchMappedHaloClients,
+  upsertGoCardlessMapping
+} from "./lib/gocardless-map.js";
 
 dotenv.config();
 
@@ -187,6 +199,7 @@ async function getDashboardStatus() {
   const status = {
     db: { state: "ok", label: "Healthy" },
     auth: { state: "unknown", label: "Unknown" },
+    goCardless: { state: "unknown", label: "Unknown" },
     sync: { state: "unknown", label: "Unknown" }
   };
 
@@ -214,6 +227,19 @@ async function getDashboardStatus() {
     } else {
       status.auth = { state: "warn", label: "Auth Check Failed" };
     }
+  }
+
+  // GoCardless
+  try {
+    const runtimeConfig = getRuntimeConfig();
+    if (!runtimeConfig.goCardlessAccessTokenConfigured) {
+      status.goCardless = { state: "warn", label: "Not Configured" };
+    } else {
+      await testGoCardlessConnection();
+      status.goCardless = { state: "ok", label: "Live API OK" };
+    }
+  } catch {
+    status.goCardless = { state: "error", label: "API Check Failed" };
   }
 
   return status;
@@ -316,6 +342,7 @@ app.get("/admin", requireAdminAuth, async (_req, res) => {
       obtainedAtHuman: formatLocalDate(tokenMeta.obtainedAt),
       dbStatus: dashboardStatus.db,
       authStatus: dashboardStatus.auth,
+      goCardlessStatus: dashboardStatus.goCardless,
       syncStatus,
       runtimeConfig,
       flash: popAdminFlash(_req)
@@ -346,6 +373,109 @@ app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
   }
 
   res.redirect("/admin#runtime-config");
+});
+
+// -------------------------------------------------
+// GOCARDLESS
+// -------------------------------------------------
+app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
+  try {
+    const runtimeConfig = getRuntimeConfig();
+    const [mappings, haloMatches, goCardlessMatches] = await Promise.all([
+      listGoCardlessMappings(),
+      searchMappedHaloClients(req.query.halo || ""),
+      runtimeConfig.goCardlessAccessTokenConfigured
+        ? searchGoCardlessCustomers(req.query.gc || "")
+        : Promise.resolve([])
+    ]);
+
+    res.render("admin/gocardless", {
+      runtimeConfig,
+      mappings,
+      haloMatches,
+      goCardlessMatches,
+      haloQuery: req.query.halo || "",
+      goCardlessQuery: req.query.gc || "",
+      flash: popAdminFlash(req)
+    });
+  } catch (err) {
+    console.error("❌ admin/gocardless error", err);
+    res.status(500).send("Failed to load GoCardless settings");
+  }
+});
+
+app.post("/admin/gocardless/token", requireAdminAuth, async (req, res) => {
+  try {
+    updateGoCardlessAccessToken(req.body.goCardlessAccessToken);
+    req.session.flash = {
+      success: "GoCardless access token saved. The widget will use it immediately."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless access token could not be saved."
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/token/clear", requireAdminAuth, async (req, res) => {
+  try {
+    clearGoCardlessAccessTokenOverride();
+    req.session.flash = {
+      success: "GoCardless admin token override cleared. The app will use .env if present."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless token override could not be cleared."
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.get("/admin/gocardless/test", requireAdminAuth, async (req, res) => {
+  try {
+    await testGoCardlessConnection();
+    req.session.flash = { success: "GoCardless live API check passed." };
+  } catch (err) {
+    req.session.flash = {
+      error: `GoCardless live API check failed: ${err.response?.status || err.message}`
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/mappings", requireAdminAuth, async (req, res) => {
+  try {
+    await upsertGoCardlessMapping({
+      xeroContactGuid: req.body.xeroContactGuid,
+      goCardlessCustomerId: req.body.goCardlessCustomerId,
+      haloClientName: req.body.haloClientName,
+      notes: req.body.notes
+    });
+    req.session.flash = { success: "GoCardless customer mapping saved." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless customer mapping could not be saved."
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/mappings/delete", requireAdminAuth, async (req, res) => {
+  try {
+    await deleteGoCardlessMapping(req.body.xeroContactGuid);
+    req.session.flash = { success: "GoCardless customer mapping removed." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless customer mapping could not be removed."
+    };
+  }
+
+  res.redirect("/admin/gocardless");
 });
 
 // -------------------------------------------------

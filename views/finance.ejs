@@ -200,6 +200,100 @@
       </div>
     </div>
 
+    <!-- GoCardless Direct Debit summary -->
+    <div class="mb-5 rounded-md border border-[#dbe3ec] bg-[#fbfcfd] px-4 py-3">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-[15px] font-semibold text-slate-900">GoCardless Direct Debit</h2>
+            <% if (!goCardless?.configured) { %>
+              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">Not configured</span>
+            <% } else if (!goCardless?.mapped) { %>
+              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">Not mapped</span>
+            <% } else if (goCardless?.state === "error") { %>
+              <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800">Lookup failed</span>
+            <% } else if (goCardless?.primaryMandate?.statusTone === "ok") { %>
+              <span class="rounded-full bg-[#e6f4f3] px-2 py-0.5 text-[11px] font-medium text-[#087f7b]">Active mandate</span>
+            <% } else if (goCardless?.primaryMandate?.statusTone === "warn") { %>
+              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800"><%= goCardless.primaryMandate.statusLabel %></span>
+            <% } else if (goCardless?.primaryMandate?.statusTone === "error") { %>
+              <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800"><%= goCardless.primaryMandate.statusLabel %></span>
+            <% } else if (goCardless?.mapped) { %>
+              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">No mandate found</span>
+            <% } %>
+          </div>
+
+          <% if (!goCardless?.configured) { %>
+            <p class="mt-1 text-[12px] text-slate-500">Add the GoCardless live access token in the admin console.</p>
+          <% } else if (!goCardless?.mapped) { %>
+            <p class="mt-1 text-[12px] text-slate-500">No GoCardless customer has been mapped to this Xero Contact GUID.</p>
+          <% } else if (goCardless?.state === "error") { %>
+            <p class="mt-1 text-[12px] text-slate-500">The mapped GoCardless customer could not be loaded.</p>
+          <% } else { %>
+            <p class="mt-1 text-[12px] text-slate-500">
+              <%= goCardless.customer?.name || "GoCardless customer" %>
+              <% if (goCardless.customer?.id) { %>
+                · <%= goCardless.customer.id %>
+              <% } %>
+            </p>
+          <% } %>
+        </div>
+
+        <% if (goCardless?.mapped && goCardless?.state === "ok") { %>
+          <div class="grid w-full gap-3 lg:w-auto lg:grid-cols-3">
+            <div class="min-w-[170px] rounded-md border border-[#dbe3ec] bg-white px-3 py-2">
+              <div class="text-[11px] uppercase text-slate-500">Mandate</div>
+              <div class="mt-1 text-[13px] font-semibold text-slate-900">
+                <%= goCardless.primaryMandate?.reference || goCardless.primaryMandate?.id || "None" %>
+              </div>
+              <div class="text-[12px] text-slate-500">
+                <%= goCardless.primaryMandate?.scheme || "" %>
+                <% if (goCardless.primaryMandate?.nextPossibleChargeDate) { %>
+                  · Next <%= goCardless.primaryMandate.nextPossibleChargeDate %>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="min-w-[190px] rounded-md border border-[#dbe3ec] bg-white px-3 py-2">
+              <div class="text-[11px] uppercase text-slate-500">Bank Account</div>
+              <div class="mt-1 text-[13px] font-semibold text-slate-900">
+                <%= goCardless.primaryBankAccount?.bankName || "Not available" %>
+              </div>
+              <div class="text-[12px] text-slate-500">
+                <% if (goCardless.primaryBankAccount?.accountNumberEnding) { %>
+                  Ending <%= goCardless.primaryBankAccount.accountNumberEnding %>
+                <% } else { %>
+                  No masked account details
+                <% } %>
+              </div>
+            </div>
+
+            <div class="min-w-[210px] rounded-md border border-[#dbe3ec] bg-white px-3 py-2">
+              <div class="text-[11px] uppercase text-slate-500">Recent Payments</div>
+              <% if (goCardless.payments?.length) { %>
+                <div class="mt-1 space-y-1">
+                  <% goCardless.payments.slice(0, 3).forEach(p => { %>
+                    <div class="flex items-center justify-between gap-3 text-[12px]">
+                      <span class="truncate"><%= p.chargeDate || "No date" %> · <%= p.amount %></span>
+                      <span class="whitespace-nowrap
+                        <%= p.statusTone === 'ok' ? 'text-[#087f7b]' : '' %>
+                        <%= p.statusTone === 'warn' ? 'text-amber-700' : '' %>
+                        <%= p.statusTone === 'error' ? 'text-rose-700' : '' %>
+                        <%= p.statusTone === 'neutral' ? 'text-slate-500' : '' %>">
+                        <%= p.statusLabel %>
+                      </span>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } else { %>
+                <div class="mt-1 text-[12px] text-slate-500">No recent payments</div>
+              <% } %>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
     <!-- Invoice table -->
     <div class="overflow-x-auto rounded-md border border-slate-200">
       <table id="invoiceTable" class="min-w-full">

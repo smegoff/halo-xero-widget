@@ -14,6 +14,7 @@ import { validateHaloHmac } from "./lib/hmac.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
 import { getRuntimeConfig } from "./lib/config.js";
+import { getGoCardlessSummaryForXeroGuid } from "./lib/gocardless.js";
 
 dotenv.config();
 console.log("🔥 SERVER.JS LOADED — WIDGET STABLE BUILD —", new Date().toISOString());
@@ -232,9 +233,10 @@ async function fetchFinanceData(contactId, haloClientName) {
     })
   );
   const invoices = inv.data.Invoices || [];
-  const onlineInvoiceUrls = await mapWithConcurrency(invoices, 3, invoice =>
-    getXeroOnlineInvoiceUrl(headers, invoice)
-  );
+  const [onlineInvoiceUrls, goCardless] = await Promise.all([
+    mapWithConcurrency(invoices, 3, invoice => getXeroOnlineInvoiceUrl(headers, invoice)),
+    getGoCardlessSummaryForXeroGuid(contactId)
+  ]);
 
   const rows = [];
   let accountBal = 0;
@@ -269,6 +271,7 @@ async function fetchFinanceData(contactId, haloClientName) {
     rows,
     accountBal: accountBal.toFixed(2),
     overdueBal: overdueBal.toFixed(2),
+    goCardless,
     asAt: new Date().toLocaleString("en-NZ"),
     fetchedAt: new Date().toISOString()
   };
