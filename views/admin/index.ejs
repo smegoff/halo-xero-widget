@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Halo ↔ Xero Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-6 text-slate-800">
+
+  <div class="max-w-6xl mx-auto">
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold tracking-tight">Halo ↔ Xero Admin Portal</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        Operations dashboard for sync status, auth, exceptions, drift and reporting.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="text-sm text-slate-500">Mapped Clients</div>
+        <div class="text-3xl font-semibold mt-1"><%= mappedCount %></div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="text-sm text-slate-500">Last Sync Watermark</div>
+        <div class="text-sm font-medium mt-2 break-all">
+          <%= lastSyncHuman || "Not available" %>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="text-sm text-slate-500">Auth Mode</div>
+        <div class="text-sm font-medium mt-2 break-all">
+          Custom Connection
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="text-sm text-slate-500 mb-2">Database Status</div>
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+          <%= dbStatus.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : '' %>
+          <%= dbStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
+          <%= dbStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
+          <%= dbStatus.label %>
+        </span>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="text-sm text-slate-500 mb-2">Xero Auth Status</div>
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+          <%= authStatus.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : '' %>
+          <%= authStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
+          <%= authStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
+          <%= authStatus.label %>
+        </span>
+        <div class="text-xs text-slate-500 mt-3">
+          Tenant: <span class="font-medium"><%= tenantName || "Not available" %></span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="text-sm text-slate-500 mb-2">Sync Status</div>
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+          <%= syncStatus.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : '' %>
+          <%= syncStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
+          <%= syncStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
+          <%= syncStatus.label %>
+        </span>
+        <div class="text-xs text-slate-500 mt-3">
+          Sync row updated: <span class="font-medium"><%= lastSyncUpdatedAt || "Not available" %></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow p-6 mb-6">
+      <h2 class="text-xl font-semibold mb-4">Actions</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <form method="POST" action="/admin/sync">
+          <button
+            type="submit"
+            class="w-full text-left p-4 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
+          >
+            <div class="font-semibold">Run Sync Now</div>
+            <div class="text-sm text-slate-600 mt-1">
+              Trigger an immediate delta sync from Xero.
+            </div>
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/sync/full" onsubmit="return confirm('Are you sure you want to run a full resync? This will reset the sync watermark and may take longer.');">
+          <button
+            type="submit"
+            class="w-full text-left p-4 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 transition"
+          >
+            <div class="font-semibold">Full Resync</div>
+            <div class="text-sm text-slate-600 mt-1">
+              Reset watermark and rebuild contact sync from Xero.
+            </div>
+          </button>
+        </form>
+
+        <a
+          href="/admin/xero/connect"
+          class="block p-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition"
+        >
+          <div class="font-semibold">Test Xero Connection</div>
+          <div class="text-sm text-slate-600 mt-1">
+            Validate the Custom Connection credentials.
+          </div>
+        </a>
+
+        <a
+          href="/admin/health"
+          class="block p-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
+        >
+          <div class="font-semibold">Health Check</div>
+          <div class="text-sm text-slate-600 mt-1">
+            Confirm app and database connectivity.
+          </div>
+        </a>
+
+        <a
+          href="/admin/exceptions"
+          class="block p-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+        >
+          <div class="font-semibold">Mapping Exceptions</div>
+          <div class="text-sm text-slate-600 mt-1">
+            Review clients without valid Xero mappings.
+          </div>
+        </a>
+
+        <a
+          href="/admin/drift"
+          class="block p-4 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 transition"
+        >
+          <div class="font-semibold">Name Drift Report</div>
+          <div class="text-sm text-slate-600 mt-1">
+            Review detected differences between Halo and Xero naming.
+          </div>
+        </a>
+
+        <a
+          href="/admin/logs?source=all"
+          class="block p-4 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 transition"
+        >
+          <div class="font-semibold">View Logs</div>
+          <div class="text-sm text-slate-600 mt-1">
+            Show recent warning and error lines.
+          </div>
+        </a>
+
+        <a
+          href="/admin/metrics"
+          class="block p-4 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 transition"
+        >
+          <div class="font-semibold">Growth Metrics</div>
+          <div class="text-sm text-slate-600 mt-1">
+            View Xero customer growth and sync counts over time.
+          </div>
+        </a>
+
+        <a
+          href="/admin/logout"
+          class="block p-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition"
+        >
+          <div class="font-semibold">Logout</div>
+          <div class="text-sm text-slate-600 mt-1">
+            End the current admin session.
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <div class="text-xs text-slate-500">
+      Admin URL: <span class="font-medium">https://widget.engagetech.nz/admin</span>
+    </div>
+  </div>
+
+</body>
+</html>

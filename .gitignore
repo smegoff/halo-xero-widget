@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+node_modules/
+tokens.json
+tokens.json.*
+*.bak
+*.bak.*
+production-snapshot/
+halo-xero-widget.zip
+npm-debug.log*

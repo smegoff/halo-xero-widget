@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Halo ↔ Xero Metrics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-6 text-slate-800">
+
+  <div class="max-w-6xl mx-auto">
+    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Growth Metrics</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          Xero customer growth and sync totals over time.
+        </p>
+      </div>
+      <a href="/admin" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-sm font-medium">
+        ← Back to Admin
+      </a>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow p-6">
+      <% if (!data || data.length === 0) { %>
+        <div class="text-center py-16">
+          <div class="text-xl font-semibold text-slate-700">No metrics recorded yet</div>
+          <p class="text-sm text-slate-500 mt-2">
+            Run a sync and wait for the metrics snapshot to be written.
+          </p>
+        </div>
+      <% } else { %>
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <div class="text-sm text-slate-500">Samples</div>
+            <div class="text-2xl font-semibold mt-1"><%= data.length %></div>
+          </div>
+
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <div class="text-sm text-slate-500">Latest Total Clients</div>
+            <div class="text-2xl font-semibold mt-1"><%= data[data.length - 1].total_clients %></div>
+          </div>
+
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <div class="text-sm text-slate-500">Latest Mapped Clients</div>
+            <div class="text-2xl font-semibold mt-1"><%= data[data.length - 1].mapped_clients %></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+          <canvas id="metricsChart" height="100"></canvas>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (data && data.length > 0) { %>
+  <script>
+    const raw = <%- JSON.stringify(data) %>;
+
+    const labels = raw.map(r =>
+      new Date(r.recorded_at).toLocaleString('en-NZ', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      })
+    );
+
+    const totalClients = raw.map(r => r.total_clients);
+    const mappedClients = raw.map(r => r.mapped_clients);
+
+    const ctx = document.getElementById('metricsChart');
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Total Clients',
+            data: totalClients,
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.25,
+            fill: false
+          },
+          {
+            label: 'Mapped Clients',
+            data: mappedClients,
+            borderColor: 'rgb(16, 185, 129)',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.25,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: 'top'
+          }
+        },
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        scales: {
+          y: {
+            beginAtZero: false
+          }
+        }
+      }
+    });
+  </script>
+  <% } %>
+
+</body>
+</html>

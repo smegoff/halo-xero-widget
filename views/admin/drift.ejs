@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Name Drift</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<div class="max-w-6xl mx-auto mt-10 p-6 bg-white rounded-xl shadow">
+
+  <h1 class="text-2xl font-bold mb-4">
+    ⚠️ Name Drift Detected
+  </h1>
+
+  <p class="text-gray-600 mb-6">
+    These clients are mapped by GUID, but the Halo name no longer matches
+    the live Xero contact name.
+  </p>
+
+  <div class="mb-6 p-4 bg-yellow-50 rounded">
+    <div class="text-sm text-gray-500">Drifted Clients</div>
+    <div class="text-xl font-semibold text-yellow-700">
+      <%= driftCount %>
+    </div>
+  </div>
+
+  <% if (drifted.length === 0) { %>
+    <div class="p-4 bg-green-100 rounded text-green-800">
+      🎉 No name drift detected.
+    </div>
+  <% } else { %>
+    <table class="w-full border-collapse">
+      <thead>
+        <tr class="border-b">
+          <th class="text-left py-2">Halo Name</th>
+          <th class="text-left py-2">Xero Name (Live)</th>
+          <th class="text-left py-2">Contact GUID</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% drifted.forEach(d => { %>
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2 font-medium"><%= d.haloClientName %></td>
+            <td class="py-2 text-yellow-700"><%= d.xeroClientName %></td>
+            <td class="py-2 text-xs text-gray-500"><%= d.contactGuid %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <div class="mt-6 flex gap-4">
+    <a href="/admin" class="text-blue-600 hover:underline">
+      ← Admin Home
+    </a>
+    <a href="/admin/exceptions" class="text-blue-600 hover:underline">
+      View Exceptions
+    </a>
+  </div>
+
+</div>
+
+</body>
+</html>

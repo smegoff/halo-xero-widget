@@ -380,15 +380,38 @@ lib/xero.js
 
 Responsible for
 
-* OAuth
-* Token refresh
-* Tenant management
+* Xero Custom Connection auth
+* `client_credentials` access-token requests
+* In-memory access-token caching
 
 Primary function
 
 ```javascript
 ensureToken()
 ```
+
+The project now uses a Xero Custom Connection rather than a Web App browser
+OAuth flow. `tokens.json`, refresh tokens, `/connections`, and user-driven
+callback re-auth are not part of the active auth path.
+
+Required environment values:
+
+```env
+XERO_CLIENT_ID=
+XERO_CLIENT_SECRET=
+XERO_SCOPES=accounting.contacts.read accounting.invoices.read
+```
+
+Optional display/compatibility values:
+
+```env
+XERO_TENANT_ID=
+XERO_TENANT_NAME=
+XERO_REDIRECT_URI=
+```
+
+Do not reintroduce browser OAuth unless the project intentionally moves away
+from Xero Custom Connections.
 
 ---
 
@@ -440,7 +463,7 @@ Authentication
 Configured in:
 
 ```env
-ADMIN_USER=
+ADMIN_USERNAME=
 ADMIN_PASSWORD=
 ADMIN_SESSION_SECRET=
 ```
@@ -450,6 +473,7 @@ Implementation
 * express-session
 * login page
 * protected routes
+* Custom Connection health/test action
 
 ---
 
@@ -591,7 +615,7 @@ Current roadmap
 Working
 
 * Halo Finance Tab
-* Xero Integration
+* Xero Custom Connection Integration
 * PostgreSQL Mapping
 * PDF Export
 * Excel Export

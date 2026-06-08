@@ -5,7 +5,7 @@ set -e
 APP_DIR="/opt/halo-xero-widget"
 APP_NAME="halo-xero"
 
-echo "== Halo ⇄ Xero Widget installer =="
+echo "== Halo Xero Widget installer =="
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run as root: sudo $0"
@@ -35,7 +35,8 @@ fi
 
 echo "-> Starting app with pm2..."
 pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
-pm2 start server.js --name "$APP_NAME"
+pm2 delete "halo-xero-admin" >/dev/null 2>&1 || true
+pm2 start ecosystem.config.cjs
 
 echo "-> Saving pm2 startup..."
 pm2 save

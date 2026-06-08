@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+  <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-sm">
+    <h1 class="text-2xl font-semibold mb-6 text-center">
+      Halo ↔ Xero Admin
+    </h1>
+
+    <% if (typeof error !== "undefined" && error) { %>
+      <div class="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 p-2 rounded">
+        <%= error %>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/admin/login" class="space-y-4">
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Username
+        </label>
+        <input
+          type="text"
+          name="username"
+          required
+          class="w-full rounded border border-gray-400 bg-white px-3 py-2
+                 shadow-sm
+                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Password
+        </label>
+        <input
+          type="password"
+          name="password"
+          required
+          class="w-full rounded border border-gray-400 bg-white px-3 py-2
+                 shadow-sm
+                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <button
+        type="submit"
+        class="w-full bg-blue-600 text-white py-2 rounded-lg
+               hover:bg-blue-700 transition font-medium"
+      >
+        Login
+      </button>
+
+    </form>
+  </div>
+
+</body>
+</html>

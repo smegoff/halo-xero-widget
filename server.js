@@ -1,315 +1,221 @@
+// server.js — Halo ↔ Xero Widget (DB-backed GUID, invoices only)
+// -------------------------------------------------------------
 
 import express from "express";
 import axios from "axios";
 import NodeCache from "node-cache";
 import dotenv from "dotenv";
-import fs from "fs";
-import crypto from "crypto";
 import ejs from "ejs";
 import puppeteer from "puppeteer";
 import ExcelJS from "exceljs";
 
-dotenv.config();
+import { pgPool } from "./lib/db.js";
+import { validateHaloHmac } from "./lib/hmac.js";
+import { getXeroHeaders, tokens } from "./lib/xero.js";
+import { resolveXeroContactGuid } from "./lib/resolver.js";
 
+dotenv.config();
+console.log("🔥 SERVER.JS LOADED — WIDGET STABLE BUILD —", new Date().toISOString());
+
+// -------------------------------------------------
+// APP SETUP
+// -------------------------------------------------
 const app = express();
 app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// -----------------------------------------------------
-// CACHE
-// -----------------------------------------------------
+// -------------------------------------------------
+// CACHE (used by PDF / Excel exports)
+// -------------------------------------------------
 const cache = new NodeCache({ stdTTL: 120 });
 
-// -----------------------------------------------------
-// LOAD / SAVE XERO TOKENS
-// -----------------------------------------------------
-const TOKEN_PATH = "/opt/halo-xero-widget/tokens.json";
+// -------------------------------------------------
+// ROOT
+// -------------------------------------------------
+app.get("/", (_req, res) => {
+  res.send("✅ Halo ↔ Xero Widget Online");
+});
 
-let tokens = {
-  access_token: "",
-  refresh_token: "",
-  tenantId: "",
-  tenantName: ""
-};
-
-if (fs.existsSync(TOKEN_PATH)) {
+// -------------------------------------------------
+// XERO SAFE FETCH (handles 429 rate limiting)
+// -------------------------------------------------
+async function fetchWithRetry(fn, retries = 1, delayMs = 2000) {
   try {
-    tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf8"));
-    console.log("🔑 Loaded stored Xero tokens.");
-  } catch (e) {
-    console.error("⚠️ Failed to read tokens.json:", e.message);
+    return await fn();
+  } catch (err) {
+    if (err.response?.status === 429 && retries > 0) {
+      console.warn("⏳ Xero rate limit hit — retrying in 2s");
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      return fetchWithRetry(fn, retries - 1, delayMs);
+    }
+    throw err;
   }
 }
 
-function saveTokens() {
-  try {
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
-    console.log("💾 Xero tokens saved.");
-  } catch (e) {
-    console.error("⚠️ Failed to write tokens.json:", e.message);
+// -------------------------------------------------
+// HALO "AREA" FIXER
+// If Halo sends: area=Leanne & Stu Christensen
+// Express parses: { area:"Leanne ", " Stu Christensen":"", ... }
+// This rebuilds area into "Leanne & Stu Christensen".
+// -------------------------------------------------
+function getHaloArea(req) {
+  const q = req.query || {};
+  let area = q.area;
+
+  // If area is missing entirely, return null
+  if (!area) return null;
+
+  // If Halo failed to URL-encode '&', Express splits the query into extra keys.
+  // We detect "unknown" keys with empty values and treat them as a continuation of area.
+  const ignoreKeys = new Set(["area", "agentId", "hmac", "haloClientId", "clientId"]);
+  const extraParts = [];
+
+  for (const [k, v] of Object.entries(q)) {
+    if (ignoreKeys.has(k)) continue;
+
+    // Halo split values show up as " <rest of name>": "" (empty)
+    if ((v === "" || v === null || typeof v === "undefined") && typeof k === "string") {
+      const cleaned = k.trim();
+      if (cleaned) extraParts.push(cleaned);
+    }
   }
-}
 
-// -----------------------------------------------------
-// XERO AUTH
-// -----------------------------------------------------
-app.get("/auth/connect", (req, res) => {
-  const url =
-    `https://login.xero.com/identity/connect/authorize?response_type=code` +
-    `&client_id=${process.env.XERO_CLIENT_ID}` +
-    `&redirect_uri=${process.env.XERO_REDIRECT_URI}` +
-    `&scope=accounting.transactions accounting.contacts offline_access`;
-  res.redirect(url);
-});
-
-app.get("/auth/callback", async (req, res) => {
-  try {
-    const r = await axios.post(
-      "https://identity.xero.com/connect/token",
-      new URLSearchParams({
-        grant_type: "authorization_code",
-        code: req.query.code,
-        redirect_uri: process.env.XERO_REDIRECT_URI,
-        client_id: process.env.XERO_CLIENT_ID,
-        client_secret: process.env.XERO_CLIENT_SECRET
-      }),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
-
-    tokens = { ...tokens, ...r.data };
-
-    const tenants = await axios.get("https://api.xero.com/connections", {
-      headers: { Authorization: `Bearer ${tokens.access_token}` }
-    });
-
-    tokens.tenantId = tenants.data[0].tenantId;
-    tokens.tenantName = tenants.data[0].tenantName;
-
-    saveTokens();
-
-    res.send("✅ Xero authenticated — you can close this tab.");
-  } catch (e) {
-    console.error("❌ OAuth callback error:", e.response?.data || e.message);
-    res.status(500).send("Auth error — check logs.");
+  // Rebuild: "Leanne " + " & " + "Stu Christensen"
+  if (extraParts.length > 0) {
+    area = `${String(area).trim()} & ${extraParts.join(" & ")}`;
   }
-});
 
-// -----------------------------------------------------
-// REFRESH TOKEN
-// -----------------------------------------------------
-async function ensureToken() {
-  if (!tokens.refresh_token) throw new Error("Not authorised yet.");
+  // Normalise whitespace + unicode
+  area = String(area)
+    .replace(/\u00A0/g, " ")  // NBSP → space
+    .replace(/\s+/g, " ")
+    .trim()
+    .normalize("NFKC");
 
-  const r = await axios.post(
-    "https://identity.xero.com/connect/token",
-    new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: tokens.refresh_token,
-      client_id: process.env.XERO_CLIENT_ID,
-      client_secret: process.env.XERO_CLIENT_SECRET
-    }),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  );
-
-  tokens = { ...tokens, ...r.data };
-  saveTokens();
-
-  return tokens.access_token;
+  return area;
 }
 
-// -----------------------------------------------------
-// HALO HMAC VALIDATION (ONLY agentId is hashed now)
-// -----------------------------------------------------
-function validateHaloHmac(req) {
-  const secret = process.env.HMAC_SECRET;
-  if (!secret)
-    return { valid: false, reason: "Missing HMAC secret", hasSecret: false };
-
-  const received = req.query.hmac || req.query.HMAC;
-  const agent = req.query.agentId || req.query.agentid;
-  const area = req.query.area;
-
-  if (!received)
-    return { valid: false, reason: "Missing HMAC", hasSecret: true };
-  if (!agent)
-    return { valid: false, reason: "Missing agentId", hasSecret: true };
-
-  const canonical = agent;
-
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(canonical)
-    .digest("base64");
-
-  return {
-    valid: expected === received,
-    canonical,
-    received,
-    expected,
-    area,
-    agentId: agent,
-    hasSecret: true
-  };
-}
-
-// -----------------------------------------------------
-// DEBUG HMAC
-// -----------------------------------------------------
-app.get("/debug-hmac", (req, res) => {
-  const result = validateHaloHmac(req);
-  res.json(result);
-});
-
-// -----------------------------------------------------
-// FINANCE ROUTE (main widget)
-// -----------------------------------------------------
+// -------------------------------------------------
+// FINANCE ROUTE (INVOICES ONLY)
+// -------------------------------------------------
 app.get("/finance", async (req, res) => {
+  console.log("🟢 /finance ROUTE ENTERED");
+  console.log("🧪 RAW QUERY:", req.query);
+
   try {
-    const h = validateHaloHmac(req);
-    if (!h.valid) {
-      return res.status(401).json({ error: "Unauthorized (HMAC failed)", ...h });
+    // ---- HMAC VALIDATION ----
+    const hmac = validateHaloHmac(req);
+    if (!hmac.valid) {
+      return res.status(401).send("Invalid HMAC");
     }
 
-    const contactName = req.query.area;
-    if (!contactName) return res.status(400).send("Missing area");
+    // ---- HALO CLIENT NAME (AREA) ----
+    const haloClientName = getHaloArea(req);
+    if (!haloClientName) {
+      return res.status(400).send("Missing Halo client name (area)");
+    }
 
-    const cached = cache.get(contactName);
-    if (cached) {
-      return res.render("finance", {
-        ...cached,
-        tenantName: tokens.tenantName,
-        agentId: h.agentId,
-        hmac: req.query.hmac || req.query.HMAC,
-        area: contactName
+    // ---- RESOLVE GUID FROM DB ----
+    const contactId = await resolveXeroContactGuid(haloClientName);
+    console.log("🧩 contactId RESOLVED:", contactId);
+
+    if (!contactId || !/^[0-9a-fA-F-]{36}$/.test(contactId)) {
+      return res.status(400).json({
+        error: "Invalid or missing Xero contact GUID",
+        haloClientName,
+        contactId
       });
     }
 
-    const token = await ensureToken();
+    // ---- XERO TOKEN ----
+    const headers = await getXeroHeaders();
 
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      "Xero-tenant-id": tokens.tenantId,
-      Accept: "application/json"
-    };
-
-    const encodedName = encodeURIComponent(contactName);
-
-    const contactResp = await axios.get(
-      `https://api.xero.com/api.xro/2.0/Contacts?where=Name=="${encodedName}"`,
-      { headers }
+    // ---- FETCH INVOICES ----
+    const inv = await fetchWithRetry(() =>
+      axios.get(
+        `https://api.xero.com/api.xro/2.0/Invoices?where=Contact.ContactID==Guid("${contactId}")`,
+        { headers }
+      )
     );
 
-    const found = contactResp.data?.Contacts?.[0];
-    if (!found) return res.status(404).send("No matching contact found");
-
-    const contactId = found.ContactID;
-
-    // Exclude voided invoices and credit notes
-    const invoiceWhere = `Contact.ContactID==Guid("${contactId}")&&Status!="VOIDED"`;
-    const creditWhere = `Contact.ContactID==Guid("${contactId}")&&Status!="VOIDED"`;
-
-    const inv = await axios.get(
-      `https://api.xero.com/api.xro/2.0/Invoices?where=${encodeURIComponent(
-        invoiceWhere
-      )}&order=Date DESC`,
-      { headers }
-    );
-
-    const crd = await axios.get(
-      `https://api.xero.com/api.xro/2.0/CreditNotes?where=${encodeURIComponent(
-        creditWhere
-      )}&order=Date DESC`,
-      { headers }
-    );
-
-    const rows = [];
-    let accountBal = 0,
-      overdueBal = 0;
+    let rows = [];
+    let accountBal = 0;
+    let overdueBal = 0;
     const today = new Date();
 
-    function pushDocs(list, type) {
-      for (const d of list) {
-        const status = d.Status || "";
-        if (status.toUpperCase() === "VOIDED") continue;
+    for (const d of inv.data.Invoices || []) {
+      const balance = Number(d.AmountDue ?? 0);
+      const total = Number(d.Total ?? 0);
+      const dueDateStr = d.DueDateString?.slice(0, 10);
+      const dueDate = dueDateStr ? new Date(dueDateStr) : null;
 
-        const balance = d.AmountDue ?? d.RemainingCredit ?? 0;
-        const total = d.Total ?? 0;
+      accountBal += balance;
+      if (dueDate && balance > 0 && dueDate < today) overdueBal += balance;
 
-        if (type === "CreditNote") accountBal -= balance;
-        else accountBal += balance;
-
-        if (new Date(d.DueDate) < today && balance > 0) overdueBal += balance;
-
-        rows.push({
-          name: d.Contact?.Name,
-          date: d.DateString?.slice(0, 10),
-          type,
-          number: d.InvoiceNumber || d.CreditNoteNumber,
-          due: d.DueDateString?.slice(0, 10),
-          total: total.toFixed(2),
-          balance: balance.toFixed(2)
-        });
-      }
+      rows.push({
+        name: d.Contact?.Name,
+        date: d.DateString?.slice(0, 10),
+        type: "Invoice",
+        number: d.InvoiceNumber,
+        due: dueDateStr,
+        ageBucket: "",
+        total,
+        balance
+      });
     }
 
-    pushDocs(inv.data.Invoices || [], "Invoice");
-    pushDocs(crd.data.CreditNotes || [], "CreditNote");
+    const asAt = new Date().toLocaleString("en-NZ");
 
-    const clientName = rows[0]?.name || contactName;
-
-    const data = {
+    // ---- CACHE FOR EXPORTS ----
+    cache.set(haloClientName, {
+      clientName: haloClientName,
+      rows,
       accountBal: accountBal.toFixed(2),
       overdueBal: overdueBal.toFixed(2),
-      rows,
-      asAt: new Date().toLocaleString("en-NZ"),
-      clientName,
-      tenantName: tokens.tenantName
-    };
-
-    cache.set(contactName, data);
-
-    res.render("finance", {
-      ...data,
-      agentId: h.agentId,
-      hmac: req.query.hmac || req.query.HMAC,
-      area: contactName
+      asAt
     });
-  } catch (e) {
-    console.error("❌ Finance error:", e.response?.data || e.message);
-    res.status(500).send("Finance fetch error — see logs.");
+
+    // ---- RENDER ----
+    res.render("finance", {
+      rows,
+      accountBal: accountBal.toFixed(2),
+      overdueBal: overdueBal.toFixed(2),
+      clientName: haloClientName,
+      tenantName: tokens.tenantName || "Xero",
+      asAt,
+      agentId: hmac.agent,
+      hmac: req.query.hmac,
+      area: haloClientName
+    });
+  } catch (err) {
+    const status = err.response?.status;
+    console.error("❌ Finance error:", status || "", err.response?.data || err.message);
+
+    if (status === 429) return res.status(429).send("Xero rate limit hit — try again shortly.");
+    res.status(500).send("Finance error");
   }
 });
 
-// -----------------------------------------------------
+// -------------------------------------------------
 // EXPORT PDF
-// -----------------------------------------------------
+// -------------------------------------------------
 app.get("/finance/export-pdf", async (req, res) => {
   try {
-    const area = req.query.area;
-    const cached = cache.get(area);
-    if (!cached) {
-      return res
-        .status(400)
-        .send(
-          `<html><body>No cached finance data to export.<br><button onclick="history.back()">Back</button></body></html>`
-        );
-    }
+    const area = getHaloArea(req) || req.query.area;
+    if (!area) return res.status(400).send("Missing area");
 
-    const renderData = {
-      ...cached,
-      tenantName: tokens.tenantName || "Xero",
-      totalAmount: cached.rows
-        .reduce((a, r) => a + parseFloat(r.total), 0)
-        .toFixed(2),
-      totalBalance: cached.rows
-        .reduce((a, r) => a + parseFloat(r.balance), 0)
-        .toFixed(2)
-    };
+    const cached = cache.get(area);
+    if (!cached) return res.status(400).send("No cached finance data. Open widget first.");
 
     const html = await ejs.renderFile(
       "/opt/halo-xero-widget/views/statement.ejs",
-      renderData
+      {
+        ...cached,
+        tenantName: tokens.tenantName || "Xero",
+        totalAmount: cached.rows.reduce((a, r) => a + Number(r.total || 0), 0).toFixed(2),
+        totalBalance: cached.rows.reduce((a, r) => a + Number(r.balance || 0), 0).toFixed(2)
+      }
     );
 
     const browser = await puppeteer.launch({
@@ -320,12 +226,7 @@ app.get("/finance/export-pdf", async (req, res) => {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
 
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" }
-    });
-
+    const pdf = await page.pdf({ format: "A4", printBackground: true });
     await browser.close();
 
     res.setHeader("Content-Type", "application/pdf");
@@ -337,28 +238,20 @@ app.get("/finance/export-pdf", async (req, res) => {
     res.send(pdf);
   } catch (err) {
     console.error("❌ export-pdf error:", err);
-    res
-      .status(500)
-      .send(
-        `<html><body>Error generating PDF — see logs.<br><button onclick="history.back()">Back</button></body></html>`
-      );
+    res.status(500).send("PDF export failed");
   }
 });
 
-// -----------------------------------------------------
+// -------------------------------------------------
 // EXPORT EXCEL
-// -----------------------------------------------------
+// -------------------------------------------------
 app.get("/finance/export-excel", async (req, res) => {
   try {
-    const area = req.query.area;
+    const area = getHaloArea(req) || req.query.area;
+    if (!area) return res.status(400).send("Missing area");
+
     const cached = cache.get(area);
-    if (!cached) {
-      return res
-        .status(400)
-        .send(
-          `<html><body>No cached finance data to export.<br><button onclick="history.back()">Back</button></body></html>`
-        );
-    }
+    if (!cached) return res.status(400).send("No cached finance data. Open widget first.");
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Statement");
@@ -366,33 +259,13 @@ app.get("/finance/export-excel", async (req, res) => {
     ws.columns = [
       { header: "Date", key: "date", width: 15 },
       { header: "Type", key: "type", width: 15 },
-      { header: "Number", key: "number", width: 15 },
-      { header: "Due Date", key: "due", width: 15 },
-      { header: "Total ($)", key: "total", width: 15 },
-      { header: "Balance ($)", key: "balance", width: 15 }
+      { header: "Number", key: "number", width: 20 },
+      { header: "Due", key: "due", width: 15 },
+      { header: "Total", key: "total", width: 15 },
+      { header: "Balance", key: "balance", width: 15 }
     ];
 
     cached.rows.forEach(r => ws.addRow(r));
-
-    // Totals row
-    const totalAmount = cached.rows.reduce(
-      (a, r) => a + parseFloat(r.total),
-      0
-    );
-    const totalBalance = cached.rows.reduce(
-      (a, r) => a + parseFloat(r.balance),
-      0
-    );
-
-    const totalsRow = ws.addRow({
-      date: "",
-      type: "",
-      number: "",
-      due: "Totals",
-      total: totalAmount.toFixed(2),
-      balance: totalBalance.toFixed(2)
-    });
-    totalsRow.font = { bold: true };
 
     const buffer = await wb.xlsx.writeBuffer();
 
@@ -408,16 +281,13 @@ app.get("/finance/export-excel", async (req, res) => {
     res.send(buffer);
   } catch (err) {
     console.error("❌ export-excel error:", err);
-    res
-      .status(500)
-      .send(
-        `<html><body>Error generating Excel — see logs.<br><button onclick="history.back()">Back</button></body></html>`
-      );
+    res.status(500).send("Excel export failed");
   }
 });
 
-// -----------------------------------------------------
-app.get("/", (_, res) => res.send("✅ Halo ↔ Xero Widget Online"));
-app.listen(process.env.PORT, () =>
-  console.log(`🚀 Widget running on port ${process.env.PORT}`)
-);
+// -------------------------------------------------
+// START
+// -------------------------------------------------
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🚀 Widget running on port", process.env.PORT || 3000);
+});

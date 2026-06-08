@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Statement for <%= clientName %></title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      color: #000;
+      font-size: 12px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin-bottom: 5px;
+    }
+
+    .meta {
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th {
+      background: #f0f0f0;
+      text-align: left;
+      padding: 8px;
+      font-weight: bold;
+      border-bottom: 1px solid #bbb;
+    }
+
+    td {
+      padding: 6px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .right { text-align: right; }
+    .center { text-align: center; }
+
+    .summary {
+      margin-top: 15px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Statement for <%= clientName %></h1>
+
+  <div class="meta">
+    <div>Tenant: <strong><%= tenantName %></strong></div>
+    <div>As at: <%= asAt %></div>
+    <div>Account Balance: $<%= accountBal %></div>
+    <div>Overdue Balance: $<%= overdueBal %></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Number</th>
+        <th>Due</th>
+        <th class="right">Total</th>
+        <th class="right">Balance</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <% rows.forEach(r => { %>
+        <tr>
+          <td><%= r.date %></td>
+          <td><%= r.type %></td>
+          <td><%= r.number %></td>
+          <td><%= r.due %></td>
+          <td class="right"><%= r.total %></td>
+          <td class="right"><%= r.balance %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <p class="summary">
+    Total Items: <%= rows.length %>
+  </p>
+
+</body>
+</html>
