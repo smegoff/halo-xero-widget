@@ -8,12 +8,17 @@
 
   <style>
     :root {
-      --halo-teal: #0b7f7d;
-      --halo-blue: #1f75bb;
+      --halo-teal: #087f7b;
+      --halo-teal-dark: #066b68;
+      --halo-teal-soft: #e6f4f3;
+      --halo-teal-line: #b6dcda;
       --halo-bg: #f3f6fa;
       --halo-line: #dbe3ec;
       --halo-text: #0f172a;
       --halo-muted: #64748b;
+      --halo-danger: #d71920;
+      --halo-danger-soft: #fff1f1;
+      --halo-danger-line: #f3c5c7;
     }
 
     body {
@@ -66,14 +71,14 @@
     }
 
     .halo-btn-primary:hover {
-      background: #096f6d;
-      border-color: #096f6d;
+      background: var(--halo-teal-dark);
+      border-color: var(--halo-teal-dark);
     }
 
     .halo-btn-danger {
       background: #ffffff;
-      border-color: #f1c7c7;
-      color: #b42318;
+      border-color: var(--halo-danger-line);
+      color: var(--halo-danger);
     }
 
     .halo-input {
@@ -87,12 +92,16 @@
     }
 
     .halo-input:focus {
-      outline: 2px solid rgba(31, 117, 187, 0.18);
-      border-color: var(--halo-blue);
+      outline: 2px solid rgba(8, 127, 123, 0.18);
+      border-color: var(--halo-teal);
     }
 
-    th.sorted-asc::after  { content: " ▲"; color: var(--halo-blue); font-size: 10px; }
-    th.sorted-desc::after { content: " ▼"; color: var(--halo-blue); font-size: 10px; }
+    th.halo-sorted {
+      background: var(--halo-teal-soft);
+    }
+
+    th.sorted-asc::after  { content: " ▲"; color: var(--halo-teal); font-size: 10px; }
+    th.sorted-desc::after { content: " ▼"; color: var(--halo-teal); font-size: 10px; }
     tr.fade-in { animation: fadeIn 0.18s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   </style>
@@ -114,7 +123,7 @@
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mb-4">
       <div class="min-w-0">
         <h1 class="text-[21px] font-semibold leading-tight text-slate-900 mb-1">
-          Client Xero Financial Summary - <span class="text-[#174ea6]"><%= clientName %></span>
+          Client Xero Financial Summary - <span class="text-[#087f7b]"><%= clientName %></span>
         </h1>
         <p class="text-[13px] text-slate-500">
           As at <%= asAt %> — Tenant: <%= tenantName || "Xero" %>
@@ -178,13 +187,13 @@
 
     <!-- Account balances -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-      <div class="px-4 py-3 bg-[#eef5fd] border border-[#dceaf8] rounded-md text-center">
+      <div class="px-4 py-3 bg-[#e6f4f3] border border-[#b6dcda] rounded-md text-center">
         <div class="text-[13px] text-slate-500">Account Balance</div>
-        <div class="text-[20px] font-semibold text-[#174ea6]">$<%= accountBal %></div>
+        <div class="text-[20px] font-semibold text-[#087f7b]">$<%= accountBal %></div>
       </div>
-      <div class="px-4 py-3 bg-[#fff1f1] border border-[#f3d9d9] rounded-md text-center">
+      <div class="px-4 py-3 bg-[#fff1f1] border border-[#f3c5c7] rounded-md text-center">
         <div class="text-[13px] text-slate-500">Overdue Balance</div>
-        <div class="text-[20px] font-semibold text-[#b42318]">$<%= overdueBal %></div>
+        <div class="text-[20px] font-semibold text-[#d71920]">$<%= overdueBal %></div>
       </div>
     </div>
 
@@ -244,8 +253,8 @@
           <tr>
             <td colspan="4" class="py-2.5 px-3 text-left">Totals</td>
             <td id="invoiceCount" class="py-2.5 px-3 text-left text-slate-600"></td>
-            <td id="totalSum" class="py-2.5 px-3 text-right text-[#174ea6]"></td>
-            <td id="balanceSum" class="py-2.5 px-3 text-right text-[#b42318]"></td>
+            <td id="totalSum" class="py-2.5 px-3 text-right text-[#087f7b]"></td>
+            <td id="balanceSum" class="py-2.5 px-3 text-right text-[#d71920]"></td>
           </tr>
         </tfoot>
 
@@ -303,12 +312,12 @@
       const rows = Array.from(table.querySelectorAll("tbody tr"));
       const headers = table.querySelectorAll("th");
 
-      headers.forEach(h => h.classList.remove("bg-blue-50", "sorted-asc", "sorted-desc"));
+      headers.forEach(h => h.classList.remove("halo-sorted", "sorted-asc", "sorted-desc"));
 
       if (currentSorted === colIndex) sortDirection *= -1;
       else sortDirection = 1;
 
-      headers[colIndex].classList.add("bg-blue-50");
+      headers[colIndex].classList.add("halo-sorted");
       headers[colIndex].classList.add(sortDirection === 1 ? "sorted-asc" : "sorted-desc");
 
       currentSorted = colIndex;
