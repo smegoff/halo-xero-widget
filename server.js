@@ -13,6 +13,7 @@ import ExcelJS from "exceljs";
 import { validateHaloHmac } from "./lib/hmac.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
+import { FINANCE_CACHE_TTL_SECONDS, EXPORT_TOKEN_TTL_SECONDS } from "./lib/config.js";
 
 dotenv.config();
 console.log("🔥 SERVER.JS LOADED — WIDGET STABLE BUILD —", new Date().toISOString());
@@ -28,13 +29,6 @@ app.use(express.json());
 // -------------------------------------------------
 // CACHE (used by finance view + PDF / Excel exports)
 // -------------------------------------------------
-function positiveIntegerEnv(name, defaultValue) {
-  const value = Number.parseInt(process.env[name] || "", 10);
-  return Number.isFinite(value) && value > 0 ? value : defaultValue;
-}
-
-const FINANCE_CACHE_TTL_SECONDS = positiveIntegerEnv("FINANCE_CACHE_TTL_SECONDS", 300);
-const EXPORT_TOKEN_TTL_SECONDS = positiveIntegerEnv("EXPORT_TOKEN_TTL_SECONDS", 900);
 const cache = new NodeCache({
   stdTTL: FINANCE_CACHE_TTL_SECONDS,
   useClones: false

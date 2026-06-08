@@ -13,6 +13,7 @@ import fs from "fs";
 import { pgPool } from "./lib/db.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { runSync } from "./scripts/sync-xero-contacts.js";
+import { getRuntimeConfig } from "./lib/config.js";
 
 dotenv.config();
 
@@ -293,6 +294,7 @@ app.get("/admin", requireAdminAuth, async (_req, res) => {
     const tokenMeta = readTokensMeta();
     const dashboardStatus = await getDashboardStatus();
     const syncStatus = getSyncStatus(lastSync);
+    const runtimeConfig = getRuntimeConfig();
 
     res.render("admin/index", {
       mappedCount,
@@ -305,7 +307,8 @@ app.get("/admin", requireAdminAuth, async (_req, res) => {
       obtainedAtHuman: formatLocalDate(tokenMeta.obtainedAt),
       dbStatus: dashboardStatus.db,
       authStatus: dashboardStatus.auth,
-      syncStatus
+      syncStatus,
+      runtimeConfig
     });
   } catch (err) {
     console.error("❌ admin/index error", err);

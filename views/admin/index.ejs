@@ -76,6 +76,52 @@
     </div>
 
     <div class="bg-white rounded-2xl shadow p-6 mb-6">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold">Runtime Configuration</h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Active values loaded from the service environment. Restart services after changing .env.
+          </p>
+        </div>
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700">
+          .env
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="text-sm text-slate-500">Finance Cache TTL</div>
+          <div class="text-2xl font-semibold mt-1">
+            <%= runtimeConfig.financeCacheTtlHuman %>
+          </div>
+          <div class="text-xs text-slate-500 mt-2">
+            FINANCE_CACHE_TTL_SECONDS=<%= runtimeConfig.financeCacheTtlSeconds %>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="text-sm text-slate-500">Export Link TTL</div>
+          <div class="text-2xl font-semibold mt-1">
+            <%= runtimeConfig.exportTokenTtlHuman %>
+          </div>
+          <div class="text-xs text-slate-500 mt-2">
+            EXPORT_TOKEN_TTL_SECONDS=<%= runtimeConfig.exportTokenTtlSeconds %>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="text-sm text-slate-500">Export Token Secret</div>
+          <div class="text-sm font-semibold mt-2">
+            <%= runtimeConfig.exportTokenSecretSource %>
+          </div>
+          <div class="text-xs text-slate-500 mt-3">
+            <%= runtimeConfig.exportTokenSecretConfigured ? "Dedicated export token secret is configured." : "Using HMAC_SECRET until EXPORT_TOKEN_SECRET is set." %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow p-6 mb-6">
       <h2 class="text-xl font-semibold mb-4">Actions</h2>
 
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

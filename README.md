@@ -46,6 +46,11 @@ Use the in-widget **Refresh** button to bypass the cache and fetch fresh Xero
 data. PDF and Excel exports use short-lived signed export tokens tied to the
 cached finance payload.
 
+The admin dashboard shows the active finance cache TTL, export link TTL and
+export token secret source under **Runtime Configuration**. These values are
+read from the service environment at startup, so changing `.env` requires a
+service restart.
+
 ## Halo Tab URL
 
 ```text
