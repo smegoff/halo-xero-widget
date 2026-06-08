@@ -6,62 +6,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-[#f3f6fa] text-[#0f172a] min-h-screen p-6" style="font-family: Inter, 'Segoe UI', Arial, sans-serif;">
 
-<div class="max-w-6xl mx-auto mt-10 p-6 bg-white rounded-xl shadow">
+<div class="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-sm border border-[#dbe3ec]">
 
-  <h1 class="text-2xl font-bold mb-4">
-    ⚠️ Mapping Exceptions
+  <h1 class="text-[24px] font-semibold mb-4">
+    Mapping Exceptions
   </h1>
 
-  <p class="text-gray-600 mb-6">
+  <p class="text-slate-600 mb-6">
     Clients listed here are not correctly mapped to Xero and will fail in the widget.
   </p>
 
   <div class="grid grid-cols-2 gap-4 mb-6">
-    <div class="p-4 bg-green-50 rounded">
+    <div class="p-4 bg-[#e6f4f3] border border-[#b6dcda] rounded-lg">
       <div class="text-sm text-gray-500">Mapped Clients</div>
-      <div class="text-xl font-semibold text-green-700">
+      <div class="text-xl font-semibold text-[#087f7b]">
         <%= mappedCount %>
       </div>
     </div>
-    <div class="p-4 bg-red-50 rounded">
+    <div class="p-4 bg-[#fff1f1] border border-[#f3c5c7] rounded-lg">
       <div class="text-sm text-gray-500">Unmapped Clients</div>
-      <div class="text-xl font-semibold text-red-700">
+      <div class="text-xl font-semibold text-[#d71920]">
         <%= unmappedCount %>
       </div>
     </div>
   </div>
 
   <% if (unmapped.length === 0) { %>
-    <div class="p-4 bg-green-100 rounded text-green-800">
-      🎉 No unmapped clients detected.
+    <div class="p-4 bg-[#e6f4f3] border border-[#b6dcda] rounded-lg text-[#087f7b]">
+      No unmapped clients detected.
     </div>
   <% } else { %>
+    <div class="overflow-x-auto rounded-lg border border-[#dbe3ec]">
     <table class="w-full border-collapse">
-      <thead>
-        <tr class="border-b">
-          <th class="text-left py-2">Halo Client</th>
-          <th class="text-left py-2">Reason</th>
-          <th class="text-left py-2">Last Updated</th>
+      <thead class="bg-[#f4f6f8]">
+        <tr class="border-b border-[#dbe3ec]">
+          <th class="text-left py-2.5 px-3 text-sm font-semibold">Halo Client</th>
+          <th class="text-left py-2.5 px-3 text-sm font-semibold">Reason</th>
+          <th class="text-left py-2.5 px-3 text-sm font-semibold">Last Updated</th>
         </tr>
       </thead>
       <tbody>
         <% unmapped.forEach(u => { %>
-          <tr class="border-b hover:bg-gray-50">
-            <td class="py-2 font-medium"><%= u.haloClientName %></td>
-            <td class="py-2 text-red-600"><%= u.reason %></td>
-            <td class="py-2 text-gray-500 text-sm">
+          <tr class="border-b border-slate-100 hover:bg-[#f7fafc]">
+            <td class="py-2.5 px-3 font-medium"><%= u.haloClientName %></td>
+            <td class="py-2.5 px-3 text-[#d71920]"><%= u.reason %></td>
+            <td class="py-2.5 px-3 text-slate-500 text-sm">
               <%= new Date(u.updatedAt).toLocaleString("en-NZ") %>
             </td>
           </tr>
         <% }) %>
       </tbody>
     </table>
+    </div>
   <% } %>
 
   <div class="mt-6">
-    <a href="/admin" class="text-blue-600 hover:underline">
+    <a href="/admin" class="text-[#087f7b] hover:underline font-medium">
       ← Back to Admin Home
     </a>
   </div>

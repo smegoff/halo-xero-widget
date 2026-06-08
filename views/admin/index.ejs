@@ -6,30 +6,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 min-h-screen p-6 text-slate-800">
+<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Inter, 'Segoe UI', Arial, sans-serif;">
 
   <div class="max-w-6xl mx-auto">
     <div class="mb-6">
-      <h1 class="text-3xl font-bold tracking-tight">Halo ↔ Xero Admin Portal</h1>
+      <h1 class="text-[24px] font-semibold tracking-tight text-[#0f172a]">Halo ↔ Xero Admin Portal</h1>
       <p class="text-sm text-slate-500 mt-1">
         Operations dashboard for sync status, auth, exceptions, drift and reporting.
       </p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white rounded-2xl shadow p-5">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <div class="text-sm text-slate-500">Mapped Clients</div>
-        <div class="text-3xl font-semibold mt-1"><%= mappedCount %></div>
+        <div class="text-3xl font-semibold mt-1 text-[#087f7b]"><%= mappedCount %></div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow p-5">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <div class="text-sm text-slate-500">Last Sync Watermark</div>
         <div class="text-sm font-medium mt-2 break-all">
           <%= lastSyncHuman || "Not available" %>
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow p-5">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <div class="text-sm text-slate-500">Auth Mode</div>
         <div class="text-sm font-medium mt-2 break-all">
           Custom Connection
@@ -38,20 +38,20 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white rounded-2xl shadow p-5">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <div class="text-sm text-slate-500 mb-2">Database Status</div>
         <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
-          <%= dbStatus.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : '' %>
+          <%= dbStatus.state === 'ok' ? 'bg-[#e6f4f3] text-[#087f7b]' : '' %>
           <%= dbStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
           <%= dbStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
           <%= dbStatus.label %>
         </span>
       </div>
 
-      <div class="bg-white rounded-2xl shadow p-5">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <div class="text-sm text-slate-500 mb-2">Xero Auth Status</div>
         <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
-          <%= authStatus.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : '' %>
+          <%= authStatus.state === 'ok' ? 'bg-[#e6f4f3] text-[#087f7b]' : '' %>
           <%= authStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
           <%= authStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
           <%= authStatus.label %>
@@ -61,10 +61,10 @@
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow p-5">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <div class="text-sm text-slate-500 mb-2">Sync Status</div>
         <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
-          <%= syncStatus.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : '' %>
+          <%= syncStatus.state === 'ok' ? 'bg-[#e6f4f3] text-[#087f7b]' : '' %>
           <%= syncStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
           <%= syncStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
           <%= syncStatus.label %>
@@ -75,7 +75,7 @@
       </div>
     </div>
 
-    <div id="runtime-config" class="bg-white rounded-2xl shadow p-6 mb-6">
+    <div id="runtime-config" class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-6 mb-6">
       <div class="flex items-start justify-between gap-4 mb-4">
         <div>
           <h2 class="text-xl font-semibold">Runtime Configuration</h2>
@@ -83,13 +83,13 @@
             Cache and export timing changes are applied from the admin override file without a restart.
           </p>
         </div>
-        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700">
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-[#e6f4f3] text-[#087f7b]">
           Editable
         </span>
       </div>
 
       <% if (flash?.success) { %>
-        <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div class="mb-4 rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
           <%= flash.success %>
         </div>
       <% } %>
@@ -102,7 +102,7 @@
 
       <form method="POST" action="/admin/config/runtime">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label class="rounded-xl border border-slate-200 p-4 block">
+          <label class="rounded-lg border border-[#dbe3ec] p-4 block bg-[#fbfcfd]">
             <span class="text-sm text-slate-500">Finance Cache TTL</span>
             <span class="block text-xs text-slate-500 mt-1">
               Current: <%= runtimeConfig.financeCacheTtlHuman %> · <%= runtimeConfig.financeCacheTtlSource %>
@@ -115,14 +115,14 @@
               step="1"
               required
               value="<%= runtimeConfig.financeCacheTtlSeconds %>"
-              class="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
             />
             <span class="block text-xs text-slate-500 mt-2">
               Seconds. Used for finance-tab Xero invoice data.
             </span>
           </label>
 
-          <label class="rounded-xl border border-slate-200 p-4 block">
+          <label class="rounded-lg border border-[#dbe3ec] p-4 block bg-[#fbfcfd]">
             <span class="text-sm text-slate-500">Export Link TTL</span>
             <span class="block text-xs text-slate-500 mt-1">
               Current: <%= runtimeConfig.exportTokenTtlHuman %> · <%= runtimeConfig.exportTokenTtlSource %>
@@ -135,14 +135,14 @@
               step="1"
               required
               value="<%= runtimeConfig.exportTokenTtlSeconds %>"
-              class="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
             />
             <span class="block text-xs text-slate-500 mt-2">
               Seconds. Used for newly generated PDF and Excel links.
             </span>
           </label>
 
-          <div class="rounded-xl border border-slate-200 p-4">
+          <div class="rounded-lg border border-[#dbe3ec] p-4 bg-[#fbfcfd]">
             <div class="text-sm text-slate-500">Export Token Secret</div>
             <div class="text-sm font-semibold mt-2">
               <%= runtimeConfig.exportTokenSecretSource %>
@@ -162,7 +162,7 @@
           </div>
           <button
             type="submit"
-            class="inline-flex px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700"
+            class="inline-flex px-4 py-2 rounded-full bg-[#087f7b] text-white text-sm font-medium hover:bg-[#066b68]"
           >
             Save Runtime Settings
           </button>
@@ -170,14 +170,14 @@
       </form>
     </div>
 
-    <div class="bg-white rounded-2xl shadow p-6 mb-6">
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-6 mb-6">
       <h2 class="text-xl font-semibold mb-4">Actions</h2>
 
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <form method="POST" action="/admin/sync">
           <button
             type="submit"
-            class="w-full text-left p-4 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
+            class="w-full text-left p-4 rounded-lg bg-[#e6f4f3] hover:bg-[#d9eeed] border border-[#b6dcda] transition"
           >
             <div class="font-semibold">Run Sync Now</div>
             <div class="text-sm text-slate-600 mt-1">
@@ -189,7 +189,7 @@
         <form method="POST" action="/admin/sync/full" onsubmit="return confirm('Are you sure you want to run a full resync? This will reset the sync watermark and may take longer.');">
           <button
             type="submit"
-            class="w-full text-left p-4 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 transition"
+            class="w-full text-left p-4 rounded-lg bg-[#fff1f1] hover:bg-[#ffe7e7] border border-[#f3c5c7] transition"
           >
             <div class="font-semibold">Full Resync</div>
             <div class="text-sm text-slate-600 mt-1">
@@ -200,7 +200,7 @@
 
         <a
           href="/admin/xero/connect"
-          class="block p-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">Test Xero Connection</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -210,7 +210,7 @@
 
         <a
           href="/admin/health"
-          class="block p-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">Health Check</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -220,7 +220,7 @@
 
         <a
           href="/admin/exceptions"
-          class="block p-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">Mapping Exceptions</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -230,7 +230,7 @@
 
         <a
           href="/admin/drift"
-          class="block p-4 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">Name Drift Report</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -240,7 +240,7 @@
 
         <a
           href="/admin/logs?source=all"
-          class="block p-4 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">View Logs</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -250,7 +250,7 @@
 
         <a
           href="/admin/metrics"
-          class="block p-4 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">Growth Metrics</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -260,7 +260,7 @@
 
         <a
           href="/admin/logout"
-          class="block p-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
         >
           <div class="font-semibold">Logout</div>
           <div class="text-sm text-slate-600 mt-1">
