@@ -21,7 +21,8 @@ import {
 } from "./lib/config.js";
 import {
   autoMapGoCardlessCustomersByXeroGuid,
-  searchGoCardlessCustomers,
+  getGoCardlessAdminAnomalies,
+  searchGoCardlessCustomersWithMandates,
   testGoCardlessConnection
 } from "./lib/gocardless.js";
 import {
@@ -385,12 +386,20 @@ app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
 app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
   try {
     const runtimeConfig = getRuntimeConfig();
-    const [mappings, haloMatches, goCardlessMatches] = await Promise.all([
+    const [mappings, haloMatches, goCardlessMatches, goCardlessAnomalies] = await Promise.all([
       listGoCardlessMappings(),
       searchMappedHaloClients(req.query.halo || ""),
       runtimeConfig.goCardlessAccessTokenConfigured
-        ? searchGoCardlessCustomers(req.query.gc || "")
-        : Promise.resolve([])
+        ? searchGoCardlessCustomersWithMandates(req.query.gc || "")
+        : Promise.resolve([]),
+      runtimeConfig.goCardlessAccessTokenConfigured
+        ? getGoCardlessAdminAnomalies()
+        : Promise.resolve({
+            configured: false,
+            problemMandates: [],
+            problemPayments: [],
+            duplicateCustomerGroups: []
+          })
     ]);
 
     res.render("admin/gocardless", {
@@ -398,6 +407,7 @@ app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
       mappings,
       haloMatches,
       goCardlessMatches,
+      goCardlessAnomalies,
       haloQuery: req.query.halo || "",
       goCardlessQuery: req.query.gc || "",
       flash: popAdminFlash(req)
