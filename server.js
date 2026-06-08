@@ -13,7 +13,7 @@ import ExcelJS from "exceljs";
 import { validateHaloHmac } from "./lib/hmac.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
-import { FINANCE_CACHE_TTL_SECONDS, EXPORT_TOKEN_TTL_SECONDS } from "./lib/config.js";
+import { getRuntimeConfig } from "./lib/config.js";
 
 dotenv.config();
 console.log("🔥 SERVER.JS LOADED — WIDGET STABLE BUILD —", new Date().toISOString());
@@ -30,7 +30,7 @@ app.use(express.json());
 // CACHE (used by finance view + PDF / Excel exports)
 // -------------------------------------------------
 const cache = new NodeCache({
-  stdTTL: FINANCE_CACHE_TTL_SECONDS,
+  stdTTL: 0,
   useClones: false
 });
 const inFlightFinanceRequests = new Map();
@@ -72,11 +72,12 @@ function signExportToken(cacheKey, agentId) {
   const secret = getExportSecret();
   if (!secret) return null;
 
+  const runtimeConfig = getRuntimeConfig();
   const payload = Buffer.from(
     JSON.stringify({
       key: cacheKey,
       agentId: String(agentId || ""),
-      exp: Date.now() + EXPORT_TOKEN_TTL_SECONDS * 1000
+      exp: Date.now() + runtimeConfig.exportTokenTtlSeconds * 1000
     })
   ).toString("base64url");
 
@@ -120,6 +121,15 @@ function verifyExportToken(req) {
 
 function getFinanceCacheKey(contactId) {
   return `finance:${contactId}`;
+}
+
+function isFinanceCacheEntryFresh(cached, ttlSeconds) {
+  if (!cached?.fetchedAt) return false;
+
+  const fetchedAt = new Date(cached.fetchedAt).getTime();
+  if (!Number.isFinite(fetchedAt)) return false;
+
+  return Date.now() - fetchedAt <= ttlSeconds * 1000;
 }
 
 function parseDateOnlyUtc(value) {
@@ -214,11 +224,14 @@ async function fetchFinanceData(contactId, haloClientName) {
 
 async function getCachedFinanceData(contactId, haloClientName, forceRefresh = false) {
   const cacheKey = getFinanceCacheKey(contactId);
+  const runtimeConfig = getRuntimeConfig();
 
   if (!forceRefresh) {
     const cached = cache.get(cacheKey);
-    if (cached) {
+    if (isFinanceCacheEntryFresh(cached, runtimeConfig.financeCacheTtlSeconds)) {
       return { data: cached, cacheKey, cacheStatus: "hit" };
+    } else if (cached) {
+      cache.del(cacheKey);
     }
 
     if (inFlightFinanceRequests.has(cacheKey)) {
@@ -229,7 +242,7 @@ async function getCachedFinanceData(contactId, haloClientName, forceRefresh = fa
 
   const request = fetchFinanceData(contactId, haloClientName)
     .then(data => {
-      cache.set(cacheKey, data);
+      cache.set(cacheKey, data, runtimeConfig.financeCacheTtlSeconds);
       return data;
     })
     .finally(() => {
@@ -316,6 +329,7 @@ app.get("/finance", async (req, res) => {
     }
 
     const forceRefresh = req.query.refresh === "1";
+    const runtimeConfig = getRuntimeConfig();
     const { data, cacheKey, cacheStatus } = await getCachedFinanceData(
       contactId,
       haloClientName,
@@ -333,7 +347,7 @@ app.get("/finance", async (req, res) => {
       hmac: req.query.hmac,
       area: haloClientName,
       cacheStatus,
-      cacheTtlSeconds: FINANCE_CACHE_TTL_SECONDS,
+      cacheTtlSeconds: runtimeConfig.financeCacheTtlSeconds,
       cacheKey,
       exportToken
     });

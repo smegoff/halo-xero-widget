@@ -39,6 +39,7 @@ Relevant `.env` values:
 ```env
 FINANCE_CACHE_TTL_SECONDS=300
 EXPORT_TOKEN_TTL_SECONDS=900
+RUNTIME_CONFIG_PATH=/opt/halo-xero-widget/data/runtime-config.json
 EXPORT_TOKEN_SECRET=
 ```
 
@@ -46,10 +47,10 @@ Use the in-widget **Refresh** button to bypass the cache and fetch fresh Xero
 data. PDF and Excel exports use short-lived signed export tokens tied to the
 cached finance payload.
 
-The admin dashboard shows the active finance cache TTL, export link TTL and
-export token secret source under **Runtime Configuration**. These values are
-read from the service environment at startup, so changing `.env` requires a
-service restart.
+The admin dashboard shows and edits the active finance cache TTL and export
+link TTL under **Runtime Configuration**. Admin changes are written to
+`RUNTIME_CONFIG_PATH` and are picked up by the widget without a service restart.
+The `.env` TTL values remain the defaults used when no admin override exists.
 
 ## Halo Tab URL
 

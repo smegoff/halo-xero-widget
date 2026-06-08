@@ -13,7 +13,7 @@ import fs from "fs";
 import { pgPool } from "./lib/db.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { runSync } from "./scripts/sync-xero-contacts.js";
-import { getRuntimeConfig } from "./lib/config.js";
+import { getRuntimeConfig, updateRuntimeConfig } from "./lib/config.js";
 
 dotenv.config();
 
@@ -80,6 +80,15 @@ function formatLocalDate(iso) {
   } catch {
     return iso;
   }
+}
+
+function popAdminFlash(req) {
+  const flash = req.session?.flash || {};
+  if (req.session) delete req.session.flash;
+  return {
+    success: flash.success || null,
+    error: flash.error || null
+  };
 }
 
 function tailLines(filePath, maxLines = 200) {
@@ -308,12 +317,35 @@ app.get("/admin", requireAdminAuth, async (_req, res) => {
       dbStatus: dashboardStatus.db,
       authStatus: dashboardStatus.auth,
       syncStatus,
-      runtimeConfig
+      runtimeConfig,
+      flash: popAdminFlash(_req)
     });
   } catch (err) {
     console.error("❌ admin/index error", err);
     res.status(500).send("Failed to load admin dashboard");
   }
+});
+
+// -------------------------------------------------
+// RUNTIME CONFIGURATION
+// -------------------------------------------------
+app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
+  try {
+    const runtimeConfig = updateRuntimeConfig({
+      financeCacheTtlSeconds: req.body.financeCacheTtlSeconds,
+      exportTokenTtlSeconds: req.body.exportTokenTtlSeconds
+    });
+
+    req.session.flash = {
+      success: `Runtime configuration saved. Finance cache TTL is ${runtimeConfig.financeCacheTtlHuman}; export links expire after ${runtimeConfig.exportTokenTtlHuman}.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Runtime configuration could not be saved."
+    };
+  }
+
+  res.redirect("/admin#runtime-config");
 });
 
 // -------------------------------------------------

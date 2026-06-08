@@ -7,5 +7,6 @@ tokens.json.*
 *.bak
 *.bak.*
 production-snapshot/
+data/runtime-config.json
 halo-xero-widget.zip
 npm-debug.log*
