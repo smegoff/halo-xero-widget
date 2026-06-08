@@ -29,6 +29,23 @@ XERO_SCOPES=accounting.contacts.read accounting.invoices.read
 `tokens.json` and OAuth callback re-auth are not required for Custom
 Connections.
 
+## Finance Caching
+
+The finance tab caches Xero invoice data by Xero Contact GUID. This reduces
+repeat API calls when the same Halo custom tab is opened repeatedly.
+
+Relevant `.env` values:
+
+```env
+FINANCE_CACHE_TTL_SECONDS=300
+EXPORT_TOKEN_TTL_SECONDS=900
+EXPORT_TOKEN_SECRET=
+```
+
+Use the in-widget **Refresh** button to bypass the cache and fetch fresh Xero
+data. PDF and Excel exports use short-lived signed export tokens tied to the
+cached finance payload.
+
 ## Halo Tab URL
 
 ```text

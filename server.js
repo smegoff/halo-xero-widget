@@ -6,10 +6,10 @@ import axios from "axios";
 import NodeCache from "node-cache";
 import dotenv from "dotenv";
 import ejs from "ejs";
+import crypto from "crypto";
 import puppeteer from "puppeteer";
 import ExcelJS from "exceljs";
 
-import { pgPool } from "./lib/db.js";
 import { validateHaloHmac } from "./lib/hmac.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
@@ -26,9 +26,20 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // -------------------------------------------------
-// CACHE (used by PDF / Excel exports)
+// CACHE (used by finance view + PDF / Excel exports)
 // -------------------------------------------------
-const cache = new NodeCache({ stdTTL: 120 });
+function positiveIntegerEnv(name, defaultValue) {
+  const value = Number.parseInt(process.env[name] || "", 10);
+  return Number.isFinite(value) && value > 0 ? value : defaultValue;
+}
+
+const FINANCE_CACHE_TTL_SECONDS = positiveIntegerEnv("FINANCE_CACHE_TTL_SECONDS", 300);
+const EXPORT_TOKEN_TTL_SECONDS = positiveIntegerEnv("EXPORT_TOKEN_TTL_SECONDS", 900);
+const cache = new NodeCache({
+  stdTTL: FINANCE_CACHE_TTL_SECONDS,
+  useClones: false
+});
+const inFlightFinanceRequests = new Map();
 
 // -------------------------------------------------
 // ROOT
@@ -51,6 +62,191 @@ async function fetchWithRetry(fn, retries = 1, delayMs = 2000) {
     }
     throw err;
   }
+}
+
+function getExportSecret() {
+  return process.env.EXPORT_TOKEN_SECRET || process.env.HMAC_SECRET;
+}
+
+function safeEqual(a, b) {
+  const aBuffer = Buffer.from(String(a));
+  const bBuffer = Buffer.from(String(b));
+  return aBuffer.length === bBuffer.length && crypto.timingSafeEqual(aBuffer, bBuffer);
+}
+
+function signExportToken(cacheKey, agentId) {
+  const secret = getExportSecret();
+  if (!secret) return null;
+
+  const payload = Buffer.from(
+    JSON.stringify({
+      key: cacheKey,
+      agentId: String(agentId || ""),
+      exp: Date.now() + EXPORT_TOKEN_TTL_SECONDS * 1000
+    })
+  ).toString("base64url");
+
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(payload)
+    .digest("base64url");
+
+  return `${payload}.${signature}`;
+}
+
+function verifyExportToken(req) {
+  const secret = getExportSecret();
+  const token = req.query.token;
+  const cacheKey = req.query.key;
+  const agentId = req.query.agentId;
+
+  if (!secret || !token || !cacheKey || !agentId) return false;
+
+  const [payload, receivedSignature] = String(token).split(".");
+  if (!payload || !receivedSignature) return false;
+
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(payload)
+    .digest("base64url");
+
+  if (!safeEqual(receivedSignature, expectedSignature)) return false;
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return (
+      parsed.key === cacheKey &&
+      String(parsed.agentId) === String(agentId) &&
+      Number(parsed.exp) > Date.now()
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getFinanceCacheKey(contactId) {
+  return `finance:${contactId}`;
+}
+
+function parseDateOnlyUtc(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+  if (!match) return null;
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function getTodayUtcDateOnly() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function getAgeBucket(dueDate, balance, today) {
+  if (!dueDate || balance <= 0) return "";
+
+  const daysOverdue = Math.floor((today - dueDate) / 86_400_000);
+  if (daysOverdue <= 0) return "Current";
+  if (daysOverdue <= 30) return "1-30";
+  if (daysOverdue <= 60) return "31-60";
+  if (daysOverdue <= 90) return "61-90";
+  return "90+";
+}
+
+function safeDownloadName(clientName, extension) {
+  const base = String(clientName || "Xero_Statement")
+    .replace(/[^\w\s.-]/g, "")
+    .replace(/\s+/g, "_")
+    .slice(0, 120);
+
+  return `${base || "Xero_Statement"}${extension}`;
+}
+
+function logFinanceRequest(req, haloClientName, cacheStatus) {
+  console.log("🟢 /finance", {
+    area: haloClientName || null,
+    agentId: req.query.agentId || null,
+    hasHmac: Boolean(req.query.hmac),
+    refresh: req.query.refresh === "1",
+    cache: cacheStatus
+  });
+}
+
+async function fetchFinanceData(contactId, haloClientName) {
+  const headers = await getXeroHeaders();
+
+  const inv = await fetchWithRetry(() =>
+    axios.get("https://api.xero.com/api.xro/2.0/Invoices", {
+      headers,
+      params: {
+        where: `Contact.ContactID==Guid("${contactId}")`,
+        order: "Date DESC"
+      }
+    })
+  );
+
+  const rows = [];
+  let accountBal = 0;
+  let overdueBal = 0;
+  const today = getTodayUtcDateOnly();
+
+  for (const d of inv.data.Invoices || []) {
+    const balance = Number(d.AmountDue ?? 0);
+    const total = Number(d.Total ?? 0);
+    const dueDateStr = d.DueDateString?.slice(0, 10);
+    const dueDate = parseDateOnlyUtc(dueDateStr);
+
+    accountBal += balance;
+    if (dueDate && balance > 0 && dueDate < today) overdueBal += balance;
+
+    rows.push({
+      name: d.Contact?.Name,
+      date: d.DateString?.slice(0, 10),
+      type: "Invoice",
+      number: d.InvoiceNumber,
+      due: dueDateStr,
+      ageBucket: getAgeBucket(dueDate, balance, today),
+      total,
+      balance
+    });
+  }
+
+  return {
+    clientName: haloClientName,
+    rows,
+    accountBal: accountBal.toFixed(2),
+    overdueBal: overdueBal.toFixed(2),
+    asAt: new Date().toLocaleString("en-NZ"),
+    fetchedAt: new Date().toISOString()
+  };
+}
+
+async function getCachedFinanceData(contactId, haloClientName, forceRefresh = false) {
+  const cacheKey = getFinanceCacheKey(contactId);
+
+  if (!forceRefresh) {
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return { data: cached, cacheKey, cacheStatus: "hit" };
+    }
+
+    if (inFlightFinanceRequests.has(cacheKey)) {
+      const data = await inFlightFinanceRequests.get(cacheKey);
+      return { data, cacheKey, cacheStatus: "shared" };
+    }
+  }
+
+  const request = fetchFinanceData(contactId, haloClientName)
+    .then(data => {
+      cache.set(cacheKey, data);
+      return data;
+    })
+    .finally(() => {
+      if (inFlightFinanceRequests.get(cacheKey) === request) {
+        inFlightFinanceRequests.delete(cacheKey);
+      }
+    });
+
+  inFlightFinanceRequests.set(cacheKey, request);
+  const data = await request;
+  return { data, cacheKey, cacheStatus: forceRefresh ? "refresh" : "miss" };
 }
 
 // -------------------------------------------------
@@ -100,9 +296,6 @@ function getHaloArea(req) {
 // FINANCE ROUTE (INVOICES ONLY)
 // -------------------------------------------------
 app.get("/finance", async (req, res) => {
-  console.log("🟢 /finance ROUTE ENTERED");
-  console.log("🧪 RAW QUERY:", req.query);
-
   try {
     // ---- HMAC VALIDATION ----
     const hmac = validateHaloHmac(req);
@@ -128,65 +321,27 @@ app.get("/finance", async (req, res) => {
       });
     }
 
-    // ---- XERO TOKEN ----
-    const headers = await getXeroHeaders();
-
-    // ---- FETCH INVOICES ----
-    const inv = await fetchWithRetry(() =>
-      axios.get(
-        `https://api.xero.com/api.xro/2.0/Invoices?where=Contact.ContactID==Guid("${contactId}")`,
-        { headers }
-      )
+    const forceRefresh = req.query.refresh === "1";
+    const { data, cacheKey, cacheStatus } = await getCachedFinanceData(
+      contactId,
+      haloClientName,
+      forceRefresh
     );
+    const exportToken = signExportToken(cacheKey, hmac.agent);
 
-    let rows = [];
-    let accountBal = 0;
-    let overdueBal = 0;
-    const today = new Date();
-
-    for (const d of inv.data.Invoices || []) {
-      const balance = Number(d.AmountDue ?? 0);
-      const total = Number(d.Total ?? 0);
-      const dueDateStr = d.DueDateString?.slice(0, 10);
-      const dueDate = dueDateStr ? new Date(dueDateStr) : null;
-
-      accountBal += balance;
-      if (dueDate && balance > 0 && dueDate < today) overdueBal += balance;
-
-      rows.push({
-        name: d.Contact?.Name,
-        date: d.DateString?.slice(0, 10),
-        type: "Invoice",
-        number: d.InvoiceNumber,
-        due: dueDateStr,
-        ageBucket: "",
-        total,
-        balance
-      });
-    }
-
-    const asAt = new Date().toLocaleString("en-NZ");
-
-    // ---- CACHE FOR EXPORTS ----
-    cache.set(haloClientName, {
-      clientName: haloClientName,
-      rows,
-      accountBal: accountBal.toFixed(2),
-      overdueBal: overdueBal.toFixed(2),
-      asAt
-    });
+    logFinanceRequest(req, haloClientName, cacheStatus);
 
     // ---- RENDER ----
     res.render("finance", {
-      rows,
-      accountBal: accountBal.toFixed(2),
-      overdueBal: overdueBal.toFixed(2),
-      clientName: haloClientName,
+      ...data,
       tenantName: tokens.tenantName || "Xero",
-      asAt,
       agentId: hmac.agent,
       hmac: req.query.hmac,
-      area: haloClientName
+      area: haloClientName,
+      cacheStatus,
+      cacheTtlSeconds: FINANCE_CACHE_TTL_SECONDS,
+      cacheKey,
+      exportToken
     });
   } catch (err) {
     const status = err.response?.status;
@@ -201,11 +356,14 @@ app.get("/finance", async (req, res) => {
 // EXPORT PDF
 // -------------------------------------------------
 app.get("/finance/export-pdf", async (req, res) => {
-  try {
-    const area = getHaloArea(req) || req.query.area;
-    if (!area) return res.status(400).send("Missing area");
+  let browser;
 
-    const cached = cache.get(area);
+  try {
+    if (!verifyExportToken(req)) {
+      return res.status(401).send("Invalid or expired export token");
+    }
+
+    const cached = cache.get(req.query.key);
     if (!cached) return res.status(400).send("No cached finance data. Open widget first.");
 
     const html = await ejs.renderFile(
@@ -218,7 +376,7 @@ app.get("/finance/export-pdf", async (req, res) => {
       }
     );
 
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: "new",
       args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
@@ -228,17 +386,20 @@ app.get("/finance/export-pdf", async (req, res) => {
 
     const pdf = await page.pdf({ format: "A4", printBackground: true });
     await browser.close();
+    browser = null;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${cached.clientName.replace(/\s+/g, "_")}_Statement.pdf"`
+      `attachment; filename="${safeDownloadName(cached.clientName, "_Statement.pdf")}"`
     );
 
     res.send(pdf);
   } catch (err) {
     console.error("❌ export-pdf error:", err);
     res.status(500).send("PDF export failed");
+  } finally {
+    if (browser) await browser.close().catch(() => {});
   }
 });
 
@@ -247,10 +408,11 @@ app.get("/finance/export-pdf", async (req, res) => {
 // -------------------------------------------------
 app.get("/finance/export-excel", async (req, res) => {
   try {
-    const area = getHaloArea(req) || req.query.area;
-    if (!area) return res.status(400).send("Missing area");
+    if (!verifyExportToken(req)) {
+      return res.status(401).send("Invalid or expired export token");
+    }
 
-    const cached = cache.get(area);
+    const cached = cache.get(req.query.key);
     if (!cached) return res.status(400).send("No cached finance data. Open widget first.");
 
     const wb = new ExcelJS.Workbook();
@@ -275,7 +437,7 @@ app.get("/finance/export-excel", async (req, res) => {
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${cached.clientName.replace(/\s+/g, "_")}_Statement.xlsx"`
+      `attachment; filename="${safeDownloadName(cached.clientName, "_Statement.xlsx")}"`
     );
 
     res.send(buffer);

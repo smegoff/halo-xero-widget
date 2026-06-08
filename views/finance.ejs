@@ -33,15 +33,18 @@
         </h1>
         <p class="text-sm text-gray-500">
           As at <%= asAt %> — Tenant: <%= tenantName || "Xero" %>
+          <% if (cacheStatus === "hit" || cacheStatus === "shared") { %>
+            — Cached
+          <% } %>
         </p>
       </div>
 
       <div class="flex items-center gap-2">
         <a
-          href="/finance?area=<%= encodeURIComponent(area || clientName || '') %>&agentId=<%= agentId || '' %>&hmac=<%= encodeURIComponent(hmac || '') %>"
+          href="/finance?area=<%= encodeURIComponent(area || clientName || '') %>&agentId=<%= agentId || '' %>&hmac=<%= encodeURIComponent(hmac || '') %>&refresh=1"
           class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
         >
-          🔄 Refresh
+          Refresh
         </a>
       </div>
     </div>
@@ -50,16 +53,16 @@
     <div class="flex items-center justify-between mb-4">
       <div class="flex gap-2">
         <a
-          href="/finance/export-excel?area=<%= encodeURIComponent(area || clientName || '') %>"
+          href="/finance/export-excel?key=<%= encodeURIComponent(cacheKey || '') %>&agentId=<%= encodeURIComponent(agentId || '') %>&token=<%= encodeURIComponent(exportToken || '') %>"
           class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-green-600 text-white hover:bg-green-700"
         >
-          📊 Export Excel
+          Export Excel
         </a>
         <a
-          href="/finance/export-pdf?area=<%= encodeURIComponent(area || clientName || '') %>"
+          href="/finance/export-pdf?key=<%= encodeURIComponent(cacheKey || '') %>&agentId=<%= encodeURIComponent(agentId || '') %>&token=<%= encodeURIComponent(exportToken || '') %>"
           class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
         >
-          📄 Export PDF
+          Export PDF
         </a>
       </div>
 

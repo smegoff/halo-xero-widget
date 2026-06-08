@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "check": "node --check server.js && node --check server-admin.js && node --check lib/xero.js && node --check scripts/sync-xero-contacts.js && node --check scripts/run-xero-drift.js",
+    "test": "npm run check"
   },
   "keywords": [],
   "author": "",

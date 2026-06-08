@@ -72,6 +72,32 @@ async function setLastSync(iso) {
   );
 }
 
+async function recordSyncMetrics() {
+  try {
+    const total = await pg.query(`
+      SELECT COUNT(*)::int AS count FROM halo.halo_client
+    `);
+
+    const mapped = await pg.query(`
+      SELECT COUNT(*)::int AS count
+      FROM halo.halo_client
+      WHERE xero_contact_guid IS NOT NULL
+    `);
+
+    await pg.query(`
+      INSERT INTO halo.sync_metrics (total_clients, mapped_clients)
+      VALUES ($1, $2)
+    `, [
+      total.rows[0].count,
+      mapped.rows[0].count
+    ]);
+
+    console.log("📊 Metrics snapshot recorded");
+  } catch (err) {
+    console.error("❌ Metrics snapshot failed:", err.message);
+  }
+}
+
 // -----------------------------------------------------
 // MAIN LOGIC
 // -----------------------------------------------------
@@ -133,6 +159,7 @@ async function main() {
 
   const nowIso = new Date().toISOString();
   await setLastSync(nowIso);
+  await recordSyncMetrics();
 
   console.log(`✅ Sync complete — ${processed} contacts processed`);
 }
@@ -159,29 +186,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .finally(async () => {
       await pg.end();
     });
-}
-
-// 📊 Metrics snapshot
-try {
-  const total = await pg.query(`
-    SELECT COUNT(*)::int AS count FROM halo.halo_client
-  `);
-
-  const mapped = await pg.query(`
-    SELECT COUNT(*)::int AS count
-    FROM halo.halo_client
-    WHERE xero_contact_guid IS NOT NULL
-  `);
-
-  await pg.query(`
-    INSERT INTO halo.sync_metrics (total_clients, mapped_clients)
-    VALUES ($1, $2)
-  `, [
-    total.rows[0].count,
-    mapped.rows[0].count
-  ]);
-
-  console.log("📊 Metrics snapshot recorded");
-} catch (err) {
-  console.error("❌ Metrics snapshot failed:", err.message);
 }
