@@ -79,7 +79,7 @@
           <a href="/admin/gocardless/test" class="block w-full rounded-lg border border-[#dbe3ec] px-4 py-3 text-sm font-medium hover:bg-[#f6fbfb]">
             Test GoCardless API
           </a>
-          <form method="POST" action="/admin/gocardless/auto-map" onsubmit="return confirm('Scan active GoCardless mandates and create missing Xero GUID mappings? Existing manual mappings are preserved.');">
+          <form method="POST" action="/admin/gocardless/auto-map" onsubmit="return confirm('Scan active GoCardless mandates and create missing mappings using exposed Xero GUIDs, exact names, or unique Xero email matches? Existing manual mappings are preserved.');">
             <button type="submit" class="block w-full rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-left text-sm font-medium text-[#087f7b] hover:bg-[#d9eeed]">
               Auto-map Active Mandates
             </button>
