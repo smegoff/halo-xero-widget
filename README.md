@@ -14,6 +14,15 @@ PostgreSQL, then queries Xero by GUID. Runtime Xero name matching is avoided.
 - `scripts/sync-xero-contacts.js`: Xero contact sync into Postgres.
 - `scripts/run-xero-drift.js`: stored drift detection scan.
 
+## Operator Documentation
+
+- Admin user manual with redacted screenshots:
+  `docs/admin-user-manual/README.md`
+- Fresh install / recovery runbook:
+  `docs/recovery-runbook.md`
+- One-shot install / recovery script:
+  `install_halo_xero_widget.sh`
+
 ## Xero Auth
 
 This project uses a Xero **Custom Connection**, not browser OAuth.
