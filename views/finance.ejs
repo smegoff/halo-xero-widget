@@ -220,7 +220,20 @@
           <tr class="border-b border-slate-100 hover:bg-[#f7fafc] fade-in text-[13px]">
             <td class="py-2.5 px-3"><%= r.date %></td>
             <td class="py-2.5 px-3"><%= r.type %></td>
-            <td class="py-2.5 px-3"><%= r.number %></td>
+            <td class="py-2.5 px-3">
+              <% if (r.xeroUrl) { %>
+                <a
+                  href="<%= r.xeroUrl %>"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-[#087f7b] font-medium hover:underline"
+                >
+                  <%= r.number %>
+                </a>
+              <% } else { %>
+                <%= r.number %>
+              <% } %>
+            </td>
             <td class="py-2.5 px-3"><%= r.due %></td>
 
             <td class="py-2.5 px-3"><%= r.ageBucket || "" %></td>

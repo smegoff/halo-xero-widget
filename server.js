@@ -11,7 +11,7 @@ import puppeteer from "puppeteer";
 import ExcelJS from "exceljs";
 
 import { validateHaloHmac } from "./lib/hmac.js";
-import { getXeroHeaders, tokens } from "./lib/xero.js";
+import { getXeroHeaders, getXeroOrganisationShortCode, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
 import { getRuntimeConfig } from "./lib/config.js";
 
@@ -123,6 +123,17 @@ function getFinanceCacheKey(contactId) {
   return `finance:${contactId}`;
 }
 
+function getXeroInvoiceUrl(invoiceId, organisationShortCode) {
+  if (!invoiceId || !organisationShortCode) return null;
+
+  const params = new URLSearchParams({
+    shortcode: organisationShortCode,
+    redirecturl: `/AccountsReceivable/View.aspx?InvoiceID=${invoiceId}`
+  });
+
+  return `https://go.xero.com/organisationlogin/default.aspx?${params.toString()}`;
+}
+
 function isFinanceCacheEntryFresh(cached, ttlSeconds) {
   if (!cached?.fetchedAt) return false;
 
@@ -175,6 +186,7 @@ function logFinanceRequest(req, haloClientName, cacheStatus) {
 
 async function fetchFinanceData(contactId, haloClientName) {
   const headers = await getXeroHeaders();
+  const organisationShortCode = await getXeroOrganisationShortCode();
 
   const inv = await fetchWithRetry(() =>
     axios.get("https://api.xero.com/api.xro/2.0/Invoices", {
@@ -205,6 +217,8 @@ async function fetchFinanceData(contactId, haloClientName) {
       date: d.DateString?.slice(0, 10),
       type: "Invoice",
       number: d.InvoiceNumber,
+      invoiceId: d.InvoiceID,
+      xeroUrl: getXeroInvoiceUrl(d.InvoiceID, organisationShortCode),
       due: dueDateStr,
       ageBucket: getAgeBucket(dueDate, balance, today),
       total,
