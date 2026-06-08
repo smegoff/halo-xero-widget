@@ -235,7 +235,7 @@ async function fetchFinanceData(contactId, haloClientName) {
   const invoices = inv.data.Invoices || [];
   const [onlineInvoiceUrls, goCardless] = await Promise.all([
     mapWithConcurrency(invoices, 3, invoice => getXeroOnlineInvoiceUrl(headers, invoice)),
-    getGoCardlessSummaryForXeroGuid(contactId)
+    getGoCardlessSummaryForXeroGuid(contactId, haloClientName)
   ]);
 
   const rows = [];

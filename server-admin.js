@@ -465,7 +465,7 @@ app.post("/admin/gocardless/auto-map", requireAdminAuth, async (req, res) => {
   try {
     const result = await autoMapGoCardlessCustomersByXeroGuid();
     req.session.flash = {
-      success: `Auto-map complete. ${result.mappingsCreated} new mappings created from ${result.activeMandatesScanned} active mandates; ${result.candidatesFound} Xero GUID candidates found.`
+      success: `Auto-map complete. ${result.mappingsCreated} new mappings created from ${result.activeMandatesScanned} active mandates; ${result.candidatesFound} safe candidates found.`
     };
   } catch (err) {
     req.session.flash = {

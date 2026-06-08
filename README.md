@@ -73,8 +73,9 @@ GOCARDLESS_ENVIRONMENT=live
 The admin console includes **GoCardless Settings** for testing the live API,
 updating the token override, searching Halo/Xero clients and GoCardless
 customers, auto-mapping active mandates when GoCardless exposes a Xero Contact
-GUID, and maintaining manual Xero GUID to GoCardless customer mappings. The
-`.env` token remains the default; an admin-entered token is stored in the
+GUID or when an active GoCardless customer name exactly matches one unambiguous
+Halo client, and maintaining manual Xero GUID to GoCardless customer mappings.
+The `.env` token remains the default; an admin-entered token is stored in the
 runtime config override file and is used immediately.
 
 ## Halo Tab URL
