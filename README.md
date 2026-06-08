@@ -23,12 +23,11 @@ Required `.env` values:
 ```env
 XERO_CLIENT_ID=
 XERO_CLIENT_SECRET=
-XERO_SCOPES=accounting.contacts.read accounting.invoices.read accounting.settings.read
+XERO_SCOPES=accounting.contacts.read accounting.invoices.read
 ```
 
 `tokens.json` and OAuth callback re-auth are not required for Custom
-Connections. The `accounting.settings.read` scope lets the widget read the Xero
-organisation shortcode used for invoice deep links.
+Connections.
 
 ## Finance Caching
 
@@ -53,10 +52,9 @@ link TTL under **Runtime Configuration**. Admin changes are written to
 `RUNTIME_CONFIG_PATH` and are picked up by the widget without a service restart.
 The `.env` TTL values remain the defaults used when no admin override exists.
 
-Invoice numbers link to the matching customer invoice in Xero when the Xero
-organisation shortcode is available. Set `XERO_ORGANISATION_SHORTCODE` in
-`.env`, or allow the app to read it from Xero's Organisation endpoint using the
-`accounting.settings.read` scope.
+Invoice numbers link to the matching customer-facing Xero online invoice when
+Xero provides an `OnlineInvoiceUrl`. These links use `in.xero.com` and open the
+same invoice view sent to customers, including any configured payment options.
 
 ## Halo Tab URL
 

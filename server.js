@@ -11,7 +11,7 @@ import puppeteer from "puppeteer";
 import ExcelJS from "exceljs";
 
 import { validateHaloHmac } from "./lib/hmac.js";
-import { getXeroHeaders, getXeroOrganisationShortCode, tokens } from "./lib/xero.js";
+import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
 import { getRuntimeConfig } from "./lib/config.js";
 
@@ -123,15 +123,50 @@ function getFinanceCacheKey(contactId) {
   return `finance:${contactId}`;
 }
 
-function getXeroInvoiceUrl(invoiceId, organisationShortCode) {
-  if (!invoiceId || !organisationShortCode) return null;
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(limit, items.length);
 
-  const params = new URLSearchParams({
-    shortcode: organisationShortCode,
-    redirecturl: `/AccountsReceivable/View.aspx?InvoiceID=${invoiceId}`
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
   });
 
-  return `https://go.xero.com/organisationlogin/default.aspx?${params.toString()}`;
+  await Promise.all(workers);
+  return results;
+}
+
+function canHaveOnlineInvoiceUrl(invoice) {
+  return invoice?.InvoiceID && invoice.Type === "ACCREC" && invoice.Status !== "DRAFT";
+}
+
+async function getXeroOnlineInvoiceUrl(headers, invoice) {
+  if (!canHaveOnlineInvoiceUrl(invoice)) return null;
+
+  try {
+    const response = await fetchWithRetry(() =>
+      axios.get(
+        `https://api.xero.com/api.xro/2.0/Invoices/${invoice.InvoiceID}/OnlineInvoice`,
+        {
+          headers,
+          timeout: 10000
+        }
+      )
+    );
+
+    return response.data?.OnlineInvoices?.[0]?.OnlineInvoiceUrl || null;
+  } catch (err) {
+    console.warn(
+      "⚠️ Xero online invoice URL lookup failed:",
+      invoice.InvoiceNumber || invoice.InvoiceID,
+      err.response?.status || err.message
+    );
+    return null;
+  }
 }
 
 function isFinanceCacheEntryFresh(cached, ttlSeconds) {
@@ -186,7 +221,6 @@ function logFinanceRequest(req, haloClientName, cacheStatus) {
 
 async function fetchFinanceData(contactId, haloClientName) {
   const headers = await getXeroHeaders();
-  const organisationShortCode = await getXeroOrganisationShortCode();
 
   const inv = await fetchWithRetry(() =>
     axios.get("https://api.xero.com/api.xro/2.0/Invoices", {
@@ -197,13 +231,17 @@ async function fetchFinanceData(contactId, haloClientName) {
       }
     })
   );
+  const invoices = inv.data.Invoices || [];
+  const onlineInvoiceUrls = await mapWithConcurrency(invoices, 3, invoice =>
+    getXeroOnlineInvoiceUrl(headers, invoice)
+  );
 
   const rows = [];
   let accountBal = 0;
   let overdueBal = 0;
   const today = getTodayUtcDateOnly();
 
-  for (const d of inv.data.Invoices || []) {
+  for (const [index, d] of invoices.entries()) {
     const balance = Number(d.AmountDue ?? 0);
     const total = Number(d.Total ?? 0);
     const dueDateStr = d.DueDateString?.slice(0, 10);
@@ -218,7 +256,7 @@ async function fetchFinanceData(contactId, haloClientName) {
       type: "Invoice",
       number: d.InvoiceNumber,
       invoiceId: d.InvoiceID,
-      xeroUrl: getXeroInvoiceUrl(d.InvoiceID, organisationShortCode),
+      xeroUrl: onlineInvoiceUrls[index],
       due: dueDateStr,
       ageBucket: getAgeBucket(dueDate, balance, today),
       total,
