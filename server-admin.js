@@ -19,7 +19,11 @@ import {
   updateGoCardlessAccessToken,
   updateRuntimeConfig
 } from "./lib/config.js";
-import { searchGoCardlessCustomers, testGoCardlessConnection } from "./lib/gocardless.js";
+import {
+  autoMapGoCardlessCustomersByXeroGuid,
+  searchGoCardlessCustomers,
+  testGoCardlessConnection
+} from "./lib/gocardless.js";
 import {
   deleteGoCardlessMapping,
   listGoCardlessMappings,
@@ -441,6 +445,21 @@ app.get("/admin/gocardless/test", requireAdminAuth, async (req, res) => {
   } catch (err) {
     req.session.flash = {
       error: `GoCardless live API check failed: ${err.response?.status || err.message}`
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/auto-map", requireAdminAuth, async (req, res) => {
+  try {
+    const result = await autoMapGoCardlessCustomersByXeroGuid();
+    req.session.flash = {
+      success: `Auto-map complete. ${result.mappingsCreated} new mappings created from ${result.activeMandatesScanned} active mandates; ${result.candidatesFound} Xero GUID candidates found.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: `GoCardless auto-map failed: ${err.response?.status || err.message}`
     };
   }
 
