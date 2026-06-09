@@ -5,7 +5,7 @@ Last updated: 2026-06-09
 This manual covers the production admin console at:
 
 ```text
-https://widget.engagetech.nz/admin
+https://widget.example.com/admin
 ```
 
 Screenshots are redacted for documentation. Live customer rows, payment IDs,

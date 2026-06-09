@@ -5,7 +5,7 @@ APP_DIR="${APP_DIR:-/opt/halo-xero-widget}"
 APP_USER="${APP_USER:-engageadmin}"
 REPO_URL="${REPO_URL:-https://github.com/smegoff/halo-xero-widget.git}"
 BRANCH="${BRANCH:-main}"
-DOMAIN="${DOMAIN:-widget.engagetech.nz}"
+DOMAIN="${DOMAIN:-widget.example.com}"
 NODE_MAJOR="${NODE_MAJOR:-20}"
 BACKUP_ROOT="${BACKUP_ROOT:-/opt/halo-xero-widget-backups}"
 ENV_FILE="${ENV_FILE:-}"
@@ -35,7 +35,7 @@ Common overrides:
   APP_USER=engageadmin
   REPO_URL=https://github.com/smegoff/halo-xero-widget.git
   BRANCH=main
-  DOMAIN=widget.engagetech.nz
+  DOMAIN=widget.example.com
   ENV_FILE=/root/halo-xero.env
   CONFIGURE_NGINX=1
   ENABLE_CERTBOT=1 CERTBOT_EMAIL=admin@example.com

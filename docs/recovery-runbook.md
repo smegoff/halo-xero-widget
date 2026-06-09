@@ -9,7 +9,7 @@ Ubuntu host.
 
 - App directory: `/opt/halo-xero-widget`
 - App user: `engageadmin`
-- Public host: `widget.engagetech.nz`
+- Public host: `widget.example.com`
 - Widget service: `halo-xero` on port `3000`
 - Admin service: `halo-xero-admin` on port `3001`
 - Process manager: PM2
@@ -88,8 +88,8 @@ sudo RUN_SYNC=1 bash install_halo_xero_widget.sh
 cd /opt/halo-xero-widget
 sudo -u engageadmin npm run check
 sudo -u engageadmin pm2 status
-curl -I https://widget.engagetech.nz/
-curl -I https://widget.engagetech.nz/admin
+curl -I https://widget.example.com/
+curl -I https://widget.example.com/admin
 ```
 
 Expected:

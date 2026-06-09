@@ -48,9 +48,9 @@ back into Halo custom fields.
 Required `.env` values:
 
 ```env
-HALO_RESOURCE_SERVER_URL=https://halo.engagetech.nz/api
-HALO_AUTH_SERVER_URL=https://halo.engagetech.nz/auth
-HALO_TENANT=engagetech
+HALO_RESOURCE_SERVER_URL=https://halo.example.com/api
+HALO_AUTH_SERVER_URL=https://halo.example.com/auth
+HALO_TENANT=example-tenant
 HALO_CLIENT_ID=
 HALO_CLIENT_SECRET=
 HALO_SCOPES=all
@@ -139,7 +139,7 @@ Active** badge links to the GoCardless mandate in the live or sandbox dashboard.
 ## Halo Tab URL
 
 ```text
-https://widget.engagetech.nz/finance?area=$AREA&agentId=$LOGGEDINAGENTID&hmac=$HMAC
+https://widget.example.com/finance?area=$AREA&agentId=$LOGGEDINAGENTID&hmac=$HMAC
 ```
 
 `$AREA` is the reliable Halo client-context value. The widget preserves special
