@@ -14,8 +14,11 @@ import { pgPool } from "./lib/db.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { runSync } from "./scripts/sync-xero-contacts.js";
 import {
+  clearHaloApiConfigOverride,
   clearGoCardlessAccessTokenOverride,
+  getHaloApiSettings,
   getRuntimeConfig,
+  updateHaloApiConfig,
   updateGoCardlessAccessToken,
   updateRuntimeConfig
 } from "./lib/config.js";
@@ -25,7 +28,7 @@ import {
   searchGoCardlessCustomersWithMandates,
   testGoCardlessConnection
 } from "./lib/gocardless.js";
-import { getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
+import { clearHaloTokenCache, getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
 import {
   deleteGoCardlessMapping,
   listGoCardlessMappings,
@@ -468,6 +471,91 @@ app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
   }
 });
 
+// -------------------------------------------------
+// HALO PSA API
+// -------------------------------------------------
+app.get("/admin/PSA", requireAdminAuth, async (req, res) => {
+  try {
+    const haloConfig = getHaloApiSettings();
+    let haloTest = null;
+
+    if (haloConfig.configured) {
+      try {
+        haloTest = await testHaloConnection();
+      } catch (err) {
+        haloTest = {
+          ok: false,
+          status: err.response?.status || null,
+          message: err.message
+        };
+      }
+    }
+
+    res.render("admin/psa", {
+      haloConfig,
+      haloTest,
+      flash: popAdminFlash(req)
+    });
+  } catch (err) {
+    console.error("❌ admin/PSA error", err);
+    res.status(500).send("Failed to load Halo PSA settings");
+  }
+});
+
+app.post("/admin/PSA/config", requireAdminAuth, async (req, res) => {
+  try {
+    updateHaloApiConfig({
+      resourceServerUrl: req.body.resourceServerUrl,
+      authServerUrl: req.body.authServerUrl,
+      tenant: req.body.tenant,
+      clientId: req.body.clientId,
+      clientSecret: req.body.clientSecret,
+      scopes: req.body.scopes
+    });
+    clearHaloTokenCache();
+    req.session.flash = {
+      success: "Halo API configuration saved. The new settings will be used immediately."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Halo API configuration could not be saved."
+    };
+  }
+
+  res.redirect("/admin/PSA");
+});
+
+app.post("/admin/PSA/config/clear", requireAdminAuth, async (req, res) => {
+  try {
+    clearHaloApiConfigOverride();
+    clearHaloTokenCache();
+    req.session.flash = {
+      success: "Halo API admin override cleared. The app will use .env values if present."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Halo API admin override could not be cleared."
+    };
+  }
+
+  res.redirect("/admin/PSA");
+});
+
+app.get("/admin/PSA/test", requireAdminAuth, async (req, res) => {
+  try {
+    const result = await testHaloConnection();
+    req.session.flash = {
+      success: `Halo API check passed. ${result.recordCount} clients visible to this API application.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: `Halo API check failed: ${err.response?.status || err.message}`
+    };
+  }
+
+  res.redirect("/admin/PSA");
+});
+
 app.get("/admin/gocardless/exceptions", requireAdminAuth, async (req, res) => {
   try {
     const runtimeConfig = getRuntimeConfig();
@@ -735,7 +823,7 @@ app.get("/admin/halo/test", requireAdminAuth, async (req, res) => {
     };
   }
 
-  res.redirect("/admin");
+  res.redirect("/admin/PSA");
 });
 
 // -------------------------------------------------

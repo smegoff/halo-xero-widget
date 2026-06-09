@@ -56,9 +56,11 @@ HALO_CLIENT_SECRET=
 HALO_SCOPES=all
 ```
 
-The admin dashboard shows **Halo API Status** and includes **Test Halo API**.
-The test requests a bearer token from `/auth/token` and performs a read-only
-`GET /Client?count=1` call.
+The admin dashboard shows **Halo API Status** and links to `/admin/PSA`, where
+the Halo API settings can be edited without a restart. The secret field is
+write-only; leaving it blank keeps the current secret. The test requests a
+bearer token from `/auth/token` and performs a read-only `GET /Client?count=1`
+call.
 
 ## Finance Caching
 

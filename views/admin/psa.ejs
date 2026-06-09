@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Halo PSA API</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+  <div class="max-w-5xl mx-auto">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-[24px] font-semibold tracking-tight">Halo PSA API</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          Validate the direct Halo API connection used for future PSA field updates.
+        </p>
+      </div>
+      <a href="/admin" class="inline-flex px-4 py-2 rounded-full bg-white border border-[#dbe3ec] text-sm font-medium hover:bg-[#f6fbfb]">
+        Back to Admin
+      </a>
+    </div>
+
+    <% if (flash?.success) { %>
+      <div class="mb-4 rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
+        <%= flash.success %>
+      </div>
+    <% } %>
+
+    <% if (flash?.error) { %>
+      <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <%= flash.error %>
+      </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 lg:col-span-2">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-xl font-semibold">Connection</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Values can come from .env or the admin runtime override file.
+            </p>
+          </div>
+          <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+            <%= haloConfig.configured ? 'bg-[#e6f4f3] text-[#087f7b]' : 'bg-amber-100 text-amber-800' %>">
+            <%= haloConfig.configured ? 'Configured' : 'Missing' %>
+          </span>
+        </div>
+
+        <form method="POST" action="/admin/PSA/config" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <label class="block rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <span class="text-slate-500">Resource Server</span>
+            <span class="block text-xs text-slate-500 mt-1">Source: <%= haloConfig.resourceServerUrlSource %></span>
+            <input
+              name="resourceServerUrl"
+              required
+              value="<%= haloConfig.resourceServerUrl || '' %>"
+              placeholder="https://halo.engagetech.nz/api"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+
+          <label class="block rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <span class="text-slate-500">Authorisation Server</span>
+            <span class="block text-xs text-slate-500 mt-1">Source: <%= haloConfig.authServerUrlSource %></span>
+            <input
+              name="authServerUrl"
+              required
+              value="<%= haloConfig.authServerUrl || '' %>"
+              placeholder="https://halo.engagetech.nz/auth"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+
+          <label class="block rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <span class="text-slate-500">Tenant</span>
+            <span class="block text-xs text-slate-500 mt-1">Source: <%= haloConfig.tenantSource %></span>
+            <input
+              name="tenant"
+              value="<%= haloConfig.tenant || '' %>"
+              placeholder="engagetech"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+
+          <label class="block rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <span class="text-slate-500">Client ID</span>
+            <span class="block text-xs text-slate-500 mt-1">Source: <%= haloConfig.clientIdSource %></span>
+            <input
+              name="clientId"
+              required
+              value="<%= haloConfig.clientId || '' %>"
+              autocomplete="off"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+
+          <label class="block rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <span class="text-slate-500">Client Secret</span>
+            <span class="block text-xs text-slate-500 mt-1">
+              <%= haloConfig.clientSecretConfigured ? `Configured via ${haloConfig.clientSecretSource}` : 'Not configured' %>
+            </span>
+            <input
+              type="password"
+              name="clientSecret"
+              autocomplete="new-password"
+              placeholder="Leave blank to keep current secret"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+
+          <label class="block rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <span class="text-slate-500">Scopes</span>
+            <span class="block text-xs text-slate-500 mt-1">Source: <%= haloConfig.scopesSource %></span>
+            <input
+              name="scopes"
+              value="<%= haloConfig.scopes || 'all' %>"
+              placeholder="all"
+              class="mt-3 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+
+          <div class="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
+            <div class="text-xs text-slate-500 break-all">
+              Override file: <%= haloConfig.configPath %>
+              <% if (haloConfig.updatedAt) { %>
+                · Updated: <%= haloConfig.updatedAt %>
+              <% } %>
+            </div>
+            <button type="submit" class="inline-flex rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+              Save Halo API Settings
+            </button>
+          </div>
+        </form>
+
+        <form method="POST" action="/admin/PSA/config/clear" class="mt-4" onsubmit="return confirm('Clear the Halo API admin override and fall back to .env values?');">
+          <button type="submit" class="text-sm font-medium text-rose-700 hover:underline">
+            Clear Admin Override
+          </button>
+        </form>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold mb-4">API Test</h2>
+
+        <% if (!haloConfig.configured) { %>
+          <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Configure the Halo API settings before testing.
+          </div>
+        <% } else if (haloTest?.ok) { %>
+          <div class="rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
+            API OK. <%= haloTest.recordCount %> clients are visible to this API application.
+          </div>
+        <% } else if (haloTest) { %>
+          <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            API check failed: <%= haloTest.status || haloTest.message %>
+          </div>
+        <% } %>
+
+        <a
+          href="/admin/PSA/test"
+          class="mt-4 inline-flex w-full justify-center rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]"
+        >
+          Test Halo API
+        </a>
+
+        <p class="mt-4 text-xs text-slate-500">
+          The test requests a bearer token and performs a read-only client list call.
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+      <h2 class="text-xl font-semibold">Next Integration Step</h2>
+      <p class="text-sm text-slate-500 mt-2">
+        This page proves connectivity only. Writing mandate status back to Halo will be added after the target custom field is confirmed.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

@@ -48,9 +48,10 @@ service restart.
 
 ### Halo API Check
 
-Use **Test Halo API** to validate the Halo client-credentials application. The
-check requests a bearer token and performs a read-only client list call. It does
-not update Halo records.
+Use **Halo API** or open `/admin/PSA` to configure and validate the Halo
+client-credentials application. The client secret is write-only; leave it blank
+to keep the current secret. The page can request a bearer token and perform a
+read-only client list call. It does not update Halo records.
 
 ## 3. GoCardless Settings
 
