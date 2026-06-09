@@ -1,65 +1,226 @@
 <!DOCTYPE html>
+<%
+  const rows = Array.isArray(logs) ? logs : [];
+  const dateTimeFormat = new Intl.DateTimeFormat("en-NZ", {
+    dateStyle: "medium",
+    timeStyle: "medium"
+  });
+  const formatDateTime = value => value ? dateTimeFormat.format(new Date(value)) : "No timestamp";
+  const formatCount = value => new Intl.NumberFormat("en-NZ").format(value || 0);
+  const selectedSource = filters?.source || "all";
+  const selectedSeverity = filters?.severity || "all";
+  const selectedRange = filters?.range?.range || "all";
+  const selectedQuery = filters?.q || "";
+  const includeLegacy = Boolean(filters?.includeLegacy);
+  const buildUrl = overrides => {
+    const params = new URLSearchParams();
+    params.set("source", overrides.source || selectedSource);
+    params.set("severity", overrides.severity || selectedSeverity);
+    params.set("range", overrides.range || selectedRange);
+    const q = overrides.q !== undefined ? overrides.q : selectedQuery;
+    if (q) params.set("q", q);
+    if (includeLegacy) params.set("includeLegacy", "1");
+    return `/admin/logs?${params.toString()}`;
+  };
+  const severityClasses = {
+    error: "border-red-200 bg-red-50 text-red-700",
+    warning: "border-amber-200 bg-amber-50 text-amber-800",
+    info: "border-slate-200 bg-slate-50 text-slate-700"
+  };
+%>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Halo ↔ Xero Admin Logs</title>
+  <title>Halo Xero Admin Logs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+<body class="min-h-screen bg-[#f3f6fa] p-4 text-[#0f172a] md:p-6" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
 
-  <div class="max-w-6xl mx-auto">
-    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <main class="mx-auto max-w-7xl">
+    <header class="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-[24px] font-semibold tracking-tight">Recent Logs</h1>
-        <p class="text-sm text-slate-500 mt-1">
-          Latest 15 warning/error lines from widget, admin and sync logs.
+        <h1 class="text-[24px] font-semibold tracking-tight">View Logs</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Search widget, admin, and sync logs by source, severity, and timestamp.
         </p>
       </div>
-      <a href="/admin" class="px-4 py-2 rounded-full bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] text-sm font-medium">
-        ← Back to Admin
+      <a href="/admin" class="inline-flex w-fit items-center rounded-full border border-[#dbe3ec] bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-[#f6fbfb]">
+        Back to Admin
       </a>
-    </div>
+    </header>
 
-    <div class="flex flex-wrap gap-2 mb-6">
-      <a href="/admin/logs?source=all"
-         class="px-4 py-2 rounded-full text-sm font-medium <%= source === 'all' ? 'bg-[#087f7b] text-white' : 'bg-white border border-[#dbe3ec] text-slate-700' %>">
-        All
-      </a>
-      <a href="/admin/logs?source=widget"
-         class="px-4 py-2 rounded-full text-sm font-medium <%= source === 'widget' ? 'bg-[#087f7b] text-white' : 'bg-white border border-[#dbe3ec] text-slate-700' %>">
-        Widget
-      </a>
-      <a href="/admin/logs?source=admin"
-         class="px-4 py-2 rounded-full text-sm font-medium <%= source === 'admin' ? 'bg-[#087f7b] text-white' : 'bg-white border border-[#dbe3ec] text-slate-700' %>">
-        Admin
-      </a>
-      <a href="/admin/logs?source=sync"
-         class="px-4 py-2 rounded-full text-sm font-medium <%= source === 'sync' ? 'bg-[#087f7b] text-white' : 'bg-white border border-[#dbe3ec] text-slate-700' %>">
-        Sync
-      </a>
-    </div>
-
-    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] overflow-hidden">
-      <% if (!logs || logs.length === 0) { %>
-        <div class="p-6 text-sm text-slate-500">
-          No recent warning/error lines found.
-        </div>
-      <% } else { %>
-        <div class="divide-y divide-slate-200">
-          <% logs.forEach((item) => { %>
-            <div class="p-4">
-              <div class="text-xs font-semibold text-slate-500 mb-2"><%= item.source %></div>
-              <pre class="whitespace-pre-wrap break-words text-sm bg-[#fbfcfd] rounded-lg p-3 border border-[#dbe3ec]"><%= item.line %></pre>
+    <section class="mb-5 rounded-lg border border-[#dbe3ec] bg-white p-4 shadow-sm">
+      <div class="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
+        <div class="space-y-4">
+          <div>
+            <div class="text-xs font-semibold uppercase tracking-[0.08em] text-[#087f7b]">Source</div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <% Object.entries(sourceOptions).forEach(([value, label]) => { %>
+                <a
+                  href="<%= buildUrl({ source: value }) %>"
+                  class="rounded-full border px-3 py-2 text-sm font-medium <%= selectedSource === value ? 'border-[#087f7b] bg-[#087f7b] text-white shadow-sm' : 'border-[#dbe3ec] bg-[#fbfcfd] text-slate-700 hover:bg-[#eef8f7]' %>"
+                >
+                  <%= label %>
+                </a>
+              <% }) %>
             </div>
-          <% }) %>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-2">
+            <div>
+              <div class="text-xs font-semibold uppercase tracking-[0.08em] text-[#087f7b]">Timeframe</div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <% rangeOptions.forEach(option => { %>
+                  <a
+                    href="<%= buildUrl({ range: option.value }) %>"
+                    class="rounded-full border px-3 py-2 text-sm font-medium <%= selectedRange === option.value ? 'border-[#087f7b] bg-[#087f7b] text-white shadow-sm' : 'border-[#dbe3ec] bg-[#fbfcfd] text-slate-700 hover:bg-[#eef8f7]' %>"
+                  >
+                    <%= option.label %>
+                  </a>
+                <% }) %>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs font-semibold uppercase tracking-[0.08em] text-[#087f7b]">Severity</div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <% Object.entries(severityOptions).forEach(([value, label]) => { %>
+                  <a
+                    href="<%= buildUrl({ severity: value }) %>"
+                    class="rounded-full border px-3 py-2 text-sm font-medium <%= selectedSeverity === value ? 'border-[#087f7b] bg-[#087f7b] text-white shadow-sm' : 'border-[#dbe3ec] bg-[#fbfcfd] text-slate-700 hover:bg-[#eef8f7]' %>"
+                  >
+                    <%= label %>
+                  </a>
+                <% }) %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <form method="get" action="/admin/logs" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,150px)_minmax(0,150px)_auto] xl:min-w-[680px]">
+          <input type="hidden" name="source" value="<%= selectedSource %>" />
+          <input type="hidden" name="severity" value="<%= selectedSeverity %>" />
+          <input type="hidden" name="range" value="custom" />
+          <label class="text-sm font-medium text-slate-700 md:col-span-4">
+            Search
+            <input
+              type="search"
+              name="q"
+              value="<%= selectedQuery %>"
+              placeholder="Search messages, sources, status codes..."
+              class="mt-1 block w-full rounded-md border border-[#dbe3ec] bg-white px-3 py-2 text-sm outline-none focus:border-[#087f7b] focus:ring-2 focus:ring-[#087f7b]/20"
+            />
+          </label>
+          <label class="text-sm font-medium text-slate-700">
+            From
+            <input
+              type="date"
+              name="from"
+              value="<%= filters.range.from || '' %>"
+              class="mt-1 block w-full rounded-md border border-[#dbe3ec] bg-white px-3 py-2 text-sm outline-none focus:border-[#087f7b] focus:ring-2 focus:ring-[#087f7b]/20"
+            />
+          </label>
+          <label class="text-sm font-medium text-slate-700">
+            To
+            <input
+              type="date"
+              name="to"
+              value="<%= filters.range.to || '' %>"
+              class="mt-1 block w-full rounded-md border border-[#dbe3ec] bg-white px-3 py-2 text-sm outline-none focus:border-[#087f7b] focus:ring-2 focus:ring-[#087f7b]/20"
+            />
+          </label>
+          <label class="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              name="includeLegacy"
+              value="1"
+              <%= includeLegacy ? 'checked' : '' %>
+              class="h-4 w-4 rounded border-[#dbe3ec] text-[#087f7b] focus:ring-[#087f7b]"
+            />
+            Include legacy lines
+          </label>
+          <button type="submit" class="self-end rounded-full bg-[#087f7b] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#066d6a]">
+            Apply
+          </button>
+        </form>
+      </div>
+
+      <% if (filters.range.error) { %>
+        <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <%= filters.range.error %>
         </div>
       <% } %>
-    </div>
-  </div>
+
+      <div class="mt-4 flex flex-col gap-2 border-t border-[#edf1f5] pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+        <div>
+          Showing <span class="font-medium text-slate-700"><%= formatCount(rows.length) %></span>
+          of <span class="font-medium text-slate-700"><%= formatCount(totalMatches) %></span> matching entries
+          from <span class="font-medium text-slate-700"><%= formatCount(scannedLines) %></span> scanned lines.
+        </div>
+        <div>
+          Selected timeframe:
+          <span class="font-medium text-slate-700"><%= filters.range.label %></span>.
+          <% if (selectedRange !== 'all' && !includeLegacy) { %>
+            Legacy untimestamped lines are hidden.
+          <% } %>
+        </div>
+      </div>
+    </section>
+
+    <section class="overflow-hidden rounded-lg border border-[#dbe3ec] bg-white shadow-sm">
+      <% if (!rows.length) { %>
+        <div class="p-10 text-center">
+          <div class="text-xl font-semibold text-slate-700">No log entries found</div>
+          <p class="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+            Try widening the timeframe, clearing the search, or including legacy untimestamped lines.
+          </p>
+        </div>
+      <% } else { %>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="bg-[#f7f9fb] text-xs uppercase tracking-[0.06em] text-slate-500">
+              <tr>
+                <th class="px-4 py-3 font-semibold">Time</th>
+                <th class="px-4 py-3 font-semibold">Source</th>
+                <th class="px-4 py-3 font-semibold">Severity</th>
+                <th class="px-4 py-3 font-semibold">Message</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#edf1f5]">
+              <% rows.forEach(item => { %>
+                <tr class="align-top">
+                  <td class="w-[220px] whitespace-nowrap px-4 py-3 text-slate-600">
+                    <%= formatDateTime(item.timestamp) %>
+                    <% if (!item.hasTimestamp) { %>
+                      <div class="mt-1 text-xs text-amber-700">Legacy line <%= item.lineNumber %></div>
+                    <% } %>
+                  </td>
+                  <td class="w-[220px] px-4 py-3">
+                    <div class="font-medium text-slate-800"><%= item.source %></div>
+                    <% if (item.sourceModifiedAt) { %>
+                      <div class="mt-1 text-xs text-slate-500">File updated <%= formatDateTime(item.sourceModifiedAt) %></div>
+                    <% } %>
+                  </td>
+                  <td class="w-[120px] px-4 py-3">
+                    <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize <%= severityClasses[item.severity] || severityClasses.info %>">
+                      <%= item.severity %>
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <pre class="max-w-[900px] whitespace-pre-wrap break-words rounded-md border border-[#edf1f5] bg-[#fbfcfd] p-3 text-sm leading-6 text-slate-800"><%= item.message %></pre>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </section>
+  </main>
 
 </body>
 </html>

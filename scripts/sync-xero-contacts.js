@@ -7,10 +7,18 @@
  * - Advances sync_state ONLY on success
  */
 
-import "dotenv/config";
 import axios from "axios";
+import dotenv from "dotenv";
 import { Pool } from "pg";
+import path from "path";
+import { fileURLToPath } from "url";
 import { getXeroHeaders, tokens } from "../lib/xero.js";
+import { installTimestampedConsole } from "../lib/timestamp-console.js";
+
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) installTimestampedConsole();
+
+dotenv.config();
 
 // -----------------------------------------------------
 // ENV VALIDATION

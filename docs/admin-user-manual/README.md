@@ -107,6 +107,11 @@ in the Halo finance tab or when reconciling Direct Debit issues.
 ![Admin logs](screenshots/admin-logs.png)
 
 Use `/admin/logs` to inspect PM2 and sync logs from the admin console.
+The log viewer supports source filters, severity filters, preset/custom
+timeframes, and free-text search. New service and sync log entries are written
+with timestamps; older historical lines that were created before timestamping
+was enabled are marked as legacy lines and can be included with the **Include
+legacy lines** option.
 
 Typical checks:
 

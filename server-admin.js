@@ -378,11 +378,49 @@ function scheduleGoCardlessAutoMap(delaySeconds, reason) {
   timer.unref();
 }
 
-function tailLines(filePath, maxLines = 200) {
+const LOG_RANGE_PRESETS = [
+  { value: "1h", label: "1 hour", milliseconds: 60 * 60 * 1000 },
+  { value: "6h", label: "6 hours", milliseconds: 6 * 60 * 60 * 1000 },
+  { value: "24h", label: "24 hours", milliseconds: 24 * 60 * 60 * 1000 },
+  { value: "7d", label: "7 days", milliseconds: 7 * 24 * 60 * 60 * 1000 },
+  { value: "all", label: "All time", milliseconds: null }
+];
+
+const LOG_SOURCES = {
+  all: "All",
+  widget: "Widget",
+  admin: "Admin",
+  sync: "Sync"
+};
+
+const LOG_SEVERITIES = {
+  all: "All",
+  error: "Errors",
+  warning: "Warnings",
+  info: "Info"
+};
+
+function readLogTail(filePath, maxBytes = 2_000_000) {
   try {
     if (!fs.existsSync(filePath)) return [];
-    const raw = fs.readFileSync(filePath, "utf8");
-    return raw.split(/\r?\n/).filter(Boolean).slice(-maxLines);
+    const stat = fs.statSync(filePath);
+    const start = Math.max(0, stat.size - maxBytes);
+    const length = stat.size - start;
+    const buffer = Buffer.alloc(length);
+    const fd = fs.openSync(filePath, "r");
+    try {
+      fs.readSync(fd, buffer, 0, length, start);
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    let raw = buffer.toString("utf8");
+    if (start > 0) {
+      const firstNewline = raw.indexOf("\n");
+      raw = firstNewline >= 0 ? raw.slice(firstNewline + 1) : raw;
+    }
+
+    return raw.split(/\r?\n/).filter(Boolean);
   } catch (err) {
     return [`Failed to read ${filePath}: ${err.message}`];
   }
@@ -392,8 +430,16 @@ function getLogSources() {
   return {
     all: [
       {
+        label: "halo-xero-out.log",
+        path: "/home/engageadmin/.pm2/logs/halo-xero-out.log"
+      },
+      {
         label: "halo-xero-error.log",
         path: "/home/engageadmin/.pm2/logs/halo-xero-error.log"
+      },
+      {
+        label: "halo-xero-admin-out.log",
+        path: "/home/engageadmin/.pm2/logs/halo-xero-admin-out.log"
       },
       {
         label: "halo-xero-admin-error.log",
@@ -406,11 +452,19 @@ function getLogSources() {
     ],
     widget: [
       {
+        label: "halo-xero-out.log",
+        path: "/home/engageadmin/.pm2/logs/halo-xero-out.log"
+      },
+      {
         label: "halo-xero-error.log",
         path: "/home/engageadmin/.pm2/logs/halo-xero-error.log"
       }
     ],
     admin: [
+      {
+        label: "halo-xero-admin-out.log",
+        path: "/home/engageadmin/.pm2/logs/halo-xero-admin-out.log"
+      },
       {
         label: "halo-xero-admin-error.log",
         path: "/home/engageadmin/.pm2/logs/halo-xero-admin-error.log"
@@ -425,39 +479,179 @@ function getLogSources() {
   };
 }
 
-function collectInterestingLogLines(source = "all") {
-  const sources = getLogSources()[source] || getLogSources().all;
-
-  const interestingPatterns = [
-    /error/i,
-    /failed/i,
-    /exception/i,
-    /forbidden/i,
-    /unauthorized/i,
-    /authenticationunsuccessful/i,
-    /tokenexpired/i,
-    /no xero mapping found/i,
-    /finance error/i,
-    /❌/,
-    /⚠️/
+function parseLogLineTimestamp(line) {
+  const patterns = [
+    /^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\]\s*(.*)$/,
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?):?\s*(.*)$/,
+    /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[+-]\d{4})?)\s*(.*)$/
   ];
 
-  const items = [];
+  for (const pattern of patterns) {
+    const match = line.match(pattern);
+    if (!match) continue;
 
-  for (const sourceDef of sources) {
-    const lines = tailLines(sourceDef.path, 400);
-
-    for (const line of lines) {
-      if (interestingPatterns.some((pattern) => pattern.test(line))) {
-        items.push({
-          source: sourceDef.label,
-          line
-        });
-      }
+    const parsed = new Date(match[1]);
+    if (!Number.isNaN(parsed.getTime())) {
+      return {
+        timestamp: parsed,
+        message: match[2] || ""
+      };
     }
   }
 
-  return items.slice(-15).reverse();
+  return {
+    timestamp: null,
+    message: line
+  };
+}
+
+function getLogSeverity(message) {
+  if (/error|failed|exception|forbidden|unauthorized|authenticationunsuccessful|tokenexpired|❌/i.test(message)) {
+    return "error";
+  }
+
+  if (/warn|warning|⚠️/i.test(message)) {
+    return "warning";
+  }
+
+  return "info";
+}
+
+function parseLogRange(query) {
+  const requestedRange = typeof query.range === "string" ? query.range : "";
+  const range = LOG_RANGE_PRESETS.some(preset => preset.value === requestedRange)
+    ? requestedRange
+    : "all";
+  const fromInput = typeof query.from === "string" ? query.from.trim() : "";
+  const toInput = typeof query.to === "string" ? query.to.trim() : "";
+  const hasCustom = requestedRange === "custom" || fromInput || toInput;
+
+  if (hasCustom) {
+    const from = isValidDateInput(fromInput) ? fromInput : "";
+    const to = isValidDateInput(toInput) ? toInput : "";
+    const error =
+      (fromInput && !from) || (toInput && !to)
+        ? "Use dates in YYYY-MM-DD format."
+        : from && to && from > to
+          ? "The start date must be before the end date."
+          : null;
+
+    if (!error) {
+      return {
+        range: "custom",
+        label: "Custom range",
+        from,
+        to,
+        fromTime: from ? new Date(`${from}T00:00:00.000Z`) : null,
+        toTime: to ? addDays(new Date(`${to}T00:00:00.000Z`), 1) : null,
+        error: null
+      };
+    }
+
+    if (requestedRange === "custom" && !fromInput && !toInput) {
+      return {
+        range: "custom",
+        label: "Custom range",
+        from: "",
+        to: "",
+        fromTime: null,
+        toTime: null,
+        error: null
+      };
+    }
+  }
+
+  const preset = LOG_RANGE_PRESETS.find(item => item.value === range) || LOG_RANGE_PRESETS.at(-1);
+  if (preset.value === "all") {
+    return {
+      range: "all",
+      label: preset.label,
+      from: "",
+      to: "",
+      fromTime: null,
+      toTime: null,
+      error: hasCustom ? "Invalid custom range. Showing all time." : null
+    };
+  }
+
+  const now = new Date();
+  return {
+    range: preset.value,
+    label: preset.label,
+    from: "",
+    to: "",
+    fromTime: new Date(now.getTime() - preset.milliseconds),
+    toTime: now,
+    error: null
+  };
+}
+
+function parseLogFilters(query) {
+  return {
+    source: Object.hasOwn(LOG_SOURCES, query.source) ? query.source : "all",
+    severity: Object.hasOwn(LOG_SEVERITIES, query.severity) ? query.severity : "all",
+    q: typeof query.q === "string" ? query.q.trim().slice(0, 120) : "",
+    includeLegacy: query.includeLegacy === "1" || !query.range || query.range === "all",
+    range: parseLogRange(query)
+  };
+}
+
+function collectLogEntries(filters) {
+  const sources = getLogSources()[filters.source] || getLogSources().all;
+  const query = filters.q.toLowerCase();
+  const entries = [];
+  let sequence = 0;
+  let scannedLines = 0;
+
+  for (const sourceDef of sources) {
+    const lines = readLogTail(sourceDef.path);
+    const stat = fs.existsSync(sourceDef.path) ? fs.statSync(sourceDef.path) : null;
+
+    lines.forEach((line, index) => {
+      scannedLines += 1;
+      const parsed = parseLogLineTimestamp(line);
+      const severity = getLogSeverity(parsed.message);
+      const searchable = `${sourceDef.label} ${severity} ${parsed.message}`.toLowerCase();
+
+      if (filters.severity !== "all" && filters.severity !== severity) return;
+      if (query && !searchable.includes(query)) return;
+
+      if (filters.range.fromTime || filters.range.toTime) {
+        if (!parsed.timestamp) {
+          if (!filters.includeLegacy) return;
+        } else {
+          if (filters.range.fromTime && parsed.timestamp < filters.range.fromTime) return;
+          if (filters.range.toTime && parsed.timestamp >= filters.range.toTime) return;
+        }
+      }
+
+      entries.push({
+        id: `${sourceDef.label}-${index}`,
+        source: sourceDef.label,
+        sourcePath: sourceDef.path,
+        sourceModifiedAt: stat?.mtime || null,
+        lineNumber: index + 1,
+        sequence: sequence++,
+        timestamp: parsed.timestamp,
+        hasTimestamp: Boolean(parsed.timestamp),
+        severity,
+        message: parsed.message
+      });
+    });
+  }
+
+  entries.sort((a, b) => {
+    if (a.timestamp && b.timestamp) return b.timestamp - a.timestamp;
+    if (a.timestamp) return -1;
+    if (b.timestamp) return 1;
+    return b.sequence - a.sequence;
+  });
+
+  return {
+    entries: entries.slice(0, 500),
+    totalMatches: entries.length,
+    scannedLines
+  };
 }
 
 function readTokensMeta() {
@@ -1203,15 +1397,17 @@ app.post("/admin/gocardless/mappings/delete", requireAdminAuth, async (req, res)
 // -------------------------------------------------
 app.get("/admin/logs", requireAdminAuth, async (req, res) => {
   try {
-    const source = ["all", "widget", "admin", "sync"].includes(req.query.source)
-      ? req.query.source
-      : "all";
-
-    const logs = collectInterestingLogLines(source);
+    const filters = parseLogFilters(req.query);
+    const result = collectLogEntries(filters);
 
     res.render("admin/logs", {
-      logs,
-      source
+      logs: result.entries,
+      totalMatches: result.totalMatches,
+      scannedLines: result.scannedLines,
+      filters,
+      sourceOptions: LOG_SOURCES,
+      severityOptions: LOG_SEVERITIES,
+      rangeOptions: LOG_RANGE_PRESETS
     });
   } catch (err) {
     console.error("❌ admin/logs error", err);
