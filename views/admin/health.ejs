@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Health Check</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+  <div class="max-w-5xl mx-auto">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-[24px] font-semibold tracking-tight">Health Check</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          Human-readable status for the widget, integrations, and sync state.
+        </p>
+      </div>
+      <div class="flex flex-wrap justify-end gap-2">
+        <a href="/admin/health" class="inline-flex px-4 py-2 rounded-full bg-[#087f7b] text-white text-sm font-medium hover:bg-[#066b68]">
+          Refresh
+        </a>
+        <a href="/admin" class="inline-flex px-4 py-2 rounded-full bg-white border border-[#dbe3ec] text-sm font-medium hover:bg-[#f6fbfb]">
+          Back to Admin
+        </a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <div class="text-sm text-slate-500">Mapped Clients</div>
+        <div class="text-3xl font-semibold mt-1 text-[#087f7b]"><%= mappedCount %></div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 md:col-span-2">
+        <div class="text-sm text-slate-500">Last Xero Contact Sync</div>
+        <div class="text-sm font-medium mt-2"><%= lastSyncHuman || "Not available" %></div>
+        <div class="text-xs text-slate-500 mt-1">Sync row updated: <%= lastSyncUpdatedAt || "Not available" %></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 mb-6">
+      <h2 class="text-xl font-semibold mb-4">Checks</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <% checks.forEach(check => { %>
+          <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div class="font-semibold"><%= check.name %></div>
+              <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+                <%= check.status.state === 'ok' ? 'bg-[#e6f4f3] text-[#087f7b]' : '' %>
+                <%= check.status.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
+                <%= check.status.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>
+                <%= check.status.state === 'unknown' ? 'bg-slate-100 text-slate-600' : '' %>">
+                <%= check.status.label %>
+              </span>
+            </div>
+            <div class="mt-2 text-sm text-slate-600"><%= check.detail %></div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+      <h2 class="text-xl font-semibold mb-3">Machine Endpoint</h2>
+      <p class="text-sm text-slate-500">
+        JSON health output is still available at <span class="font-medium text-slate-700">/admin/health.json</span> for scripts and monitors.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

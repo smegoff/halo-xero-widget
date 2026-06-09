@@ -379,15 +379,112 @@ app.get("/admin/logout", (req, res) => {
   });
 });
 
+async function getAdminOverview() {
+  const mappedResult = await pgPool.query(
+    "SELECT COUNT(*)::int AS count FROM halo.halo_client WHERE xero_contact_guid IS NOT NULL"
+  );
+
+  const syncResult = await pgPool.query(`
+    SELECT value, updated_at
+    FROM halo.sync_state
+    WHERE key = 'xero_contact_sync'
+    LIMIT 1
+  `);
+
+  const mappedCount = mappedResult.rows[0]?.count || 0;
+  const lastSync = syncResult.rows[0]?.value || null;
+  const lastSyncUpdatedAt = syncResult.rows[0]?.updated_at || null;
+  const tokenMeta = readTokensMeta();
+  const dashboardStatus = await getDashboardStatus();
+  const syncStatus = getSyncStatus(lastSync);
+  const runtimeConfig = getRuntimeConfig();
+
+  return {
+    mappedCount,
+    lastSync,
+    lastSyncHuman: formatLocalDate(lastSync),
+    lastSyncUpdatedAt,
+    tokenMeta,
+    dashboardStatus,
+    syncStatus,
+    runtimeConfig,
+    haloConfig: getHaloConfigStatus()
+  };
+}
+
 // -------------------------------------------------
 // HEALTH CHECK
 // -------------------------------------------------
-app.get("/admin/health", requireAdminAuth, async (_req, res) => {
+app.get("/admin/health.json", requireAdminAuth, async (_req, res) => {
   try {
-    await pgPool.query("SELECT 1");
-    res.json({ status: "ok", db: "connected" });
-  } catch {
-    res.status(500).json({ status: "error" });
+    const overview = await getAdminOverview();
+    const health = {
+      status: Object.values({
+        db: overview.dashboardStatus.db,
+        xero: overview.dashboardStatus.auth,
+        goCardless: overview.dashboardStatus.goCardless,
+        halo: overview.dashboardStatus.halo,
+        sync: overview.syncStatus
+      }).some(item => item.state === "error")
+        ? "error"
+        : "ok",
+      checks: {
+        database: overview.dashboardStatus.db,
+        xero: overview.dashboardStatus.auth,
+        goCardless: overview.dashboardStatus.goCardless,
+        halo: overview.dashboardStatus.halo,
+        sync: overview.syncStatus
+      },
+      lastSync: overview.lastSync,
+      mappedClients: overview.mappedCount
+    };
+
+    res.status(health.status === "ok" ? 200 : 500).json(health);
+  } catch (err) {
+    res.status(500).json({ status: "error", error: err.message });
+  }
+});
+
+app.get("/admin/health", requireAdminAuth, async (req, res) => {
+  try {
+    const overview = await getAdminOverview();
+    res.render("admin/health", {
+      checks: [
+        {
+          name: "Database",
+          status: overview.dashboardStatus.db,
+          detail: "PostgreSQL connection and admin session storage."
+        },
+        {
+          name: "Xero",
+          status: overview.dashboardStatus.auth,
+          detail: `Tenant: ${overview.tokenMeta.tenantName || "Not available"}`
+        },
+        {
+          name: "GoCardless",
+          status: overview.dashboardStatus.goCardless,
+          detail: `Token source: ${overview.runtimeConfig.goCardlessAccessTokenSource}`
+        },
+        {
+          name: "Halo API",
+          status: overview.dashboardStatus.halo,
+          detail: `Tenant: ${overview.haloConfig.tenant || "Not available"}`
+        },
+        {
+          name: "Xero Contact Sync",
+          status: overview.syncStatus,
+          detail: `Last sync: ${overview.lastSyncHuman || "Not available"}`
+        }
+      ],
+      mappedCount: overview.mappedCount,
+      lastSyncHuman: overview.lastSyncHuman,
+      lastSyncUpdatedAt: overview.lastSyncUpdatedAt,
+      runtimeConfig: overview.runtimeConfig,
+      flash: popAdminFlash(req)
+    });
+  } catch (err) {
+    console.error("❌ admin/health error", err);
+    res.status(500).send("Failed to load health check");
   }
 });
 
@@ -396,42 +493,24 @@ app.get("/admin/health", requireAdminAuth, async (_req, res) => {
 // -------------------------------------------------
 app.get("/admin", requireAdminAuth, async (_req, res) => {
   try {
-    const mappedResult = await pgPool.query(
-      "SELECT COUNT(*)::int AS count FROM halo.halo_client WHERE xero_contact_guid IS NOT NULL"
-    );
-
-    const syncResult = await pgPool.query(`
-      SELECT value, updated_at
-      FROM halo.sync_state
-      WHERE key = 'xero_contact_sync'
-      LIMIT 1
-    `);
-
-    const mappedCount = mappedResult.rows[0]?.count || 0;
-    const lastSync = syncResult.rows[0]?.value || null;
-    const lastSyncUpdatedAt = syncResult.rows[0]?.updated_at || null;
-
-    const tokenMeta = readTokensMeta();
-    const dashboardStatus = await getDashboardStatus();
-    const syncStatus = getSyncStatus(lastSync);
-    const runtimeConfig = getRuntimeConfig();
+    const overview = await getAdminOverview();
 
     res.render("admin/index", {
-      mappedCount,
-      lastSync,
-      lastSyncHuman: formatLocalDate(lastSync),
-      lastSyncUpdatedAt,
-      tenantName: tokenMeta.tenantName,
-      tenantId: tokenMeta.tenantId,
-      obtainedAt: tokenMeta.obtainedAt,
-      obtainedAtHuman: formatLocalDate(tokenMeta.obtainedAt),
-      dbStatus: dashboardStatus.db,
-      authStatus: dashboardStatus.auth,
-      goCardlessStatus: dashboardStatus.goCardless,
-      haloStatus: dashboardStatus.halo,
-      haloConfig: getHaloConfigStatus(),
-      syncStatus,
-      runtimeConfig,
+      mappedCount: overview.mappedCount,
+      lastSync: overview.lastSync,
+      lastSyncHuman: overview.lastSyncHuman,
+      lastSyncUpdatedAt: overview.lastSyncUpdatedAt,
+      tenantName: overview.tokenMeta.tenantName,
+      tenantId: overview.tokenMeta.tenantId,
+      obtainedAt: overview.tokenMeta.obtainedAt,
+      obtainedAtHuman: formatLocalDate(overview.tokenMeta.obtainedAt),
+      dbStatus: overview.dashboardStatus.db,
+      authStatus: overview.dashboardStatus.auth,
+      goCardlessStatus: overview.dashboardStatus.goCardless,
+      haloStatus: overview.dashboardStatus.halo,
+      haloConfig: overview.haloConfig,
+      syncStatus: overview.syncStatus,
+      runtimeConfig: overview.runtimeConfig,
       flash: popAdminFlash(_req)
     });
   } catch (err) {

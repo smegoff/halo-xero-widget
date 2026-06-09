@@ -31,8 +31,7 @@ The dashboard gives a quick operational view:
 - GoCardless API health.
 - Last Xero contact sync state.
 - Runtime configuration for cache, export links, and GoCardless auto-map.
-- Action buttons for sync, full resync, Halo/Xero health checks, logs, drift,
-  and GoCardless settings.
+- Grouped action sections for API connections, sync/data tasks, and operations.
 
 ### Runtime Configuration
 
@@ -114,6 +113,12 @@ Typical checks:
 - Sync logs for Xero contact sync failures.
 
 Sensitive log contents are redacted in this documentation screenshot.
+
+### Health Check
+
+Use **Health Check** from the Operations action group to view a readable status
+page for database, Xero, GoCardless, Halo API, and Xero contact sync health.
+Machine-readable output remains available at `/admin/health.json`.
 
 ## 6. App Exceptions
 

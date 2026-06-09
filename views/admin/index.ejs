@@ -225,120 +225,141 @@
     <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-6 mb-6">
       <h2 class="text-xl font-semibold mb-4">Actions</h2>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <form method="POST" action="/admin/sync">
-          <button
-            type="submit"
-            class="w-full text-left p-4 rounded-lg bg-[#e6f4f3] hover:bg-[#d9eeed] border border-[#b6dcda] transition"
-          >
-            <div class="font-semibold">Run Sync Now</div>
-            <div class="text-sm text-slate-600 mt-1">
-              Trigger an immediate delta sync from Xero.
-            </div>
-          </button>
-        </form>
-
-        <form method="POST" action="/admin/sync/full" onsubmit="return confirm('Are you sure you want to run a full resync? This will reset the sync watermark and may take longer.');">
-          <button
-            type="submit"
-            class="w-full text-left p-4 rounded-lg bg-[#fff1f1] hover:bg-[#ffe7e7] border border-[#f3c5c7] transition"
-          >
-            <div class="font-semibold">Full Resync</div>
-            <div class="text-sm text-slate-600 mt-1">
-              Reset watermark and rebuild contact sync from Xero.
-            </div>
-          </button>
-        </form>
-
-        <a
-          href="/admin/xero/connect"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Test Xero Connection</div>
-          <div class="text-sm text-slate-600 mt-1">
-            Validate the Custom Connection credentials.
+      <div class="space-y-6">
+        <section>
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-500">API Connections</h3>
           </div>
-        </a>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <a
+              href="/admin/PSA"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Halo API</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Configure PSA API access and Direct Debit field sync.
+              </div>
+            </a>
 
-        <a
-          href="/admin/PSA"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Halo API</div>
-          <div class="text-sm text-slate-600 mt-1">
-            View PSA connection status and test the API.
-          </div>
-        </a>
+            <a
+              href="/admin/gocardless"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">GoCardless Settings</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Manage the API token and Xero GUID customer mappings.
+              </div>
+            </a>
 
-        <a
-          href="/admin/health"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Health Check</div>
-          <div class="text-sm text-slate-600 mt-1">
-            Confirm app and database connectivity.
+            <a
+              href="/admin/xero/connect"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Test Xero Connection</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Validate the Custom Connection credentials.
+              </div>
+            </a>
           </div>
-        </a>
+        </section>
 
-        <a
-          href="/admin/exceptions"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Mapping Exceptions</div>
-          <div class="text-sm text-slate-600 mt-1">
-            Review clients without valid Xero mappings.
+        <section>
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Sync and Data</h3>
           </div>
-        </a>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <form method="POST" action="/admin/sync">
+              <button
+                type="submit"
+                class="w-full text-left p-4 rounded-lg bg-[#e6f4f3] hover:bg-[#d9eeed] border border-[#b6dcda] transition"
+              >
+                <div class="font-semibold">Run Sync Now</div>
+                <div class="text-sm text-slate-600 mt-1">
+                  Trigger an immediate delta sync from Xero.
+                </div>
+              </button>
+            </form>
 
-        <a
-          href="/admin/drift"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Name Drift Report</div>
-          <div class="text-sm text-slate-600 mt-1">
-            Review detected differences between Halo and Xero naming.
-          </div>
-        </a>
+            <form method="POST" action="/admin/sync/full" onsubmit="return confirm('Are you sure you want to run a full resync? This will reset the sync watermark and may take longer.');">
+              <button
+                type="submit"
+                class="w-full text-left p-4 rounded-lg bg-[#fff1f1] hover:bg-[#ffe7e7] border border-[#f3c5c7] transition"
+              >
+                <div class="font-semibold">Full Resync</div>
+                <div class="text-sm text-slate-600 mt-1">
+                  Reset watermark and rebuild contact sync from Xero.
+                </div>
+              </button>
+            </form>
 
-        <a
-          href="/admin/logs?source=all"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">View Logs</div>
-          <div class="text-sm text-slate-600 mt-1">
-            Show recent warning and error lines.
-          </div>
-        </a>
+            <a
+              href="/admin/exceptions"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Mapping Exceptions</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Review clients without valid Xero mappings.
+              </div>
+            </a>
 
-        <a
-          href="/admin/gocardless"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">GoCardless Settings</div>
-          <div class="text-sm text-slate-600 mt-1">
-            Manage the API token and Xero GUID customer mappings.
-          </div>
-        </a>
+            <a
+              href="/admin/drift"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Name Drift Report</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Review detected differences between Halo and Xero naming.
+              </div>
+            </a>
 
-        <a
-          href="/admin/metrics"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Growth Metrics</div>
-          <div class="text-sm text-slate-600 mt-1">
-            View Xero customer growth and sync counts over time.
+            <a
+              href="/admin/metrics"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Growth Metrics</div>
+              <div class="text-sm text-slate-600 mt-1">
+                View Xero customer growth and sync counts over time.
+              </div>
+            </a>
           </div>
-        </a>
+        </section>
 
-        <a
-          href="/admin/logout"
-          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
-        >
-          <div class="font-semibold">Logout</div>
-          <div class="text-sm text-slate-600 mt-1">
-            End the current admin session.
+        <section>
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Operations</h3>
           </div>
-        </a>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <a
+              href="/admin/health"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Health Check</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Review integration status in a readable dashboard.
+              </div>
+            </a>
+
+            <a
+              href="/admin/logs?source=all"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">View Logs</div>
+              <div class="text-sm text-slate-600 mt-1">
+                Show recent warning and error lines.
+              </div>
+            </a>
+
+            <a
+              href="/admin/logout"
+              class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+            >
+              <div class="font-semibold">Logout</div>
+              <div class="text-sm text-slate-600 mt-1">
+                End the current admin session.
+              </div>
+            </a>
+          </div>
+        </section>
       </div>
     </div>
 
