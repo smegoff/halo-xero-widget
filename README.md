@@ -165,6 +165,22 @@ ADMIN_LOCKOUT_MINUTES=15
 Use `/admin/users` to create additional accounts, reset passwords, unlock
 accounts, enable/disable accounts, and review login audits.
 
+## Admin Alerts
+
+Admin alerts can be sent to Microsoft Teams using a Teams incoming webhook or a
+Teams Workflow webhook URL. The webhook URL can be configured from
+`/admin/alerts` and is stored write-only in the runtime config override file.
+
+Relevant `.env` values:
+
+```env
+ALERTS_ENABLED=false
+TEAMS_WEBHOOK_URL=
+```
+
+Alerts are sent for admin lockouts and failed sync jobs. Routine successful jobs
+do not send alerts.
+
 ## PM2
 
 ```bash

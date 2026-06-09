@@ -14,10 +14,13 @@ import { pgPool } from "./lib/db.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { runSync } from "./scripts/sync-xero-contacts.js";
 import {
+  clearAlertConfigOverride,
   clearHaloApiConfigOverride,
   clearGoCardlessAccessTokenOverride,
+  getAlertSettings,
   getHaloApiSettings,
   getRuntimeConfig,
+  updateAlertConfig,
   updateHaloApiConfig,
   updateGoCardlessAccessToken,
   updateRuntimeConfig
@@ -41,6 +44,7 @@ import {
   unlockAdminUser,
   updateAdminUserPassword
 } from "./lib/admin-auth.js";
+import { sendAdminAlert } from "./lib/alerts.js";
 import {
   deleteGoCardlessMapping,
   listGoCardlessMappings,
@@ -151,6 +155,14 @@ function popDirectDebitSyncResult(req) {
 
 let goCardlessAutoMapRunning = false;
 
+async function notifyAdminAlert(alert) {
+  try {
+    await sendAdminAlert(alert);
+  } catch (err) {
+    console.warn("Admin alert delivery failed:", err.response?.status || err.message);
+  }
+}
+
 async function runGoCardlessAutoMap(reason = "scheduled") {
   const runtimeConfig = getRuntimeConfig();
   if (!runtimeConfig.goCardlessAccessTokenConfigured) {
@@ -184,11 +196,41 @@ async function runGoCardlessAutoMap(reason = "scheduled") {
         skipped: directDebitResult.skipped,
         failed: directDebitResult.failed
       });
+      if (directDebitResult.failed > 0) {
+        await notifyAdminAlert({
+          severity: "warning",
+          title: "Halo Direct Debit field sync completed with failures",
+          summary: "The scheduled Direct Debit custom-field sync completed but some rows failed.",
+          facts: [
+            { title: "Reason", value: reason },
+            { title: "Failed", value: directDebitResult.failed },
+            { title: "Skipped", value: directDebitResult.skipped }
+          ]
+        });
+      }
     } catch (err) {
       console.warn("Halo Direct Debit custom-field sync failed:", err.response?.status || err.message);
+      await notifyAdminAlert({
+        severity: "error",
+        title: "Halo Direct Debit field sync failed",
+        summary: "The scheduled Direct Debit custom-field sync failed after GoCardless auto-map.",
+        facts: [
+          { title: "Reason", value: reason },
+          { title: "Error", value: err.response?.status || err.message }
+        ]
+      });
     }
   } catch (err) {
     console.warn("GoCardless auto-map failed:", err.response?.status || err.message);
+    await notifyAdminAlert({
+      severity: "error",
+      title: "GoCardless auto-map failed",
+      summary: "The scheduled GoCardless active mandate auto-map failed.",
+      facts: [
+        { title: "Reason", value: reason },
+        { title: "Error", value: err.response?.status || err.message }
+      ]
+    });
   } finally {
     goCardlessAutoMapRunning = false;
   }
@@ -513,6 +555,75 @@ app.post("/admin/users/:id/active", requireAdminAuth, async (req, res) => {
   res.redirect("/admin/users");
 });
 
+// -------------------------------------------------
+// ADMIN ALERTS
+// -------------------------------------------------
+app.get("/admin/alerts", requireAdminAuth, async (req, res) => {
+  res.render("admin/alerts", {
+    alertSettings: getAlertSettings(),
+    flash: popAdminFlash(req)
+  });
+});
+
+app.post("/admin/alerts/config", requireAdminAuth, async (req, res) => {
+  try {
+    updateAlertConfig({
+      alertsEnabled: req.body.alertsEnabled,
+      teamsWebhookUrl: req.body.teamsWebhookUrl
+    });
+    req.session.flash = {
+      success: "Alert settings saved."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Alert settings could not be saved."
+    };
+  }
+
+  res.redirect("/admin/alerts");
+});
+
+app.post("/admin/alerts/config/clear", requireAdminAuth, async (req, res) => {
+  try {
+    clearAlertConfigOverride();
+    req.session.flash = {
+      success: "Alert admin override cleared. The app will use .env values if present."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Alert settings could not be cleared."
+    };
+  }
+
+  res.redirect("/admin/alerts");
+});
+
+app.post("/admin/alerts/test", requireAdminAuth, async (req, res) => {
+  try {
+    const result = await sendAdminAlert({
+      severity: "info",
+      title: "Halo Xero Widget test alert",
+      summary: "This is a test alert from the admin console.",
+      facts: [
+        { title: "Triggered by", value: req.session.adminUsername || "Admin" },
+        { title: "Time", value: new Date().toISOString() }
+      ]
+    });
+
+    req.session.flash = {
+      success: result.sent
+        ? "Test alert sent to Teams."
+        : `Test alert skipped: ${result.reason}.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: `Test alert failed: ${err.response?.status || err.message}`
+    };
+  }
+
+  res.redirect("/admin/alerts");
+});
+
 async function getAdminOverview() {
   const mappedResult = await pgPool.query(
     "SELECT COUNT(*)::int AS count FROM halo.halo_client WHERE xero_contact_guid IS NOT NULL"
@@ -822,6 +933,14 @@ app.post("/admin/PSA/direct-debit-sync", requireAdminAuth, async (req, res) => {
     req.session.flash = {
       error: `Direct Debit sync failed: ${err.response?.status || err.message}`
     };
+    await notifyAdminAlert({
+      severity: "error",
+      title: "Manual Direct Debit sync failed",
+      summary: "A manually triggered Halo Direct Debit custom-field sync failed.",
+      facts: [
+        { title: "Error", value: err.response?.status || err.message }
+      ]
+    });
   }
 
   res.redirect("/admin/PSA");
@@ -903,6 +1022,14 @@ app.post("/admin/gocardless/auto-map", requireAdminAuth, async (req, res) => {
     req.session.flash = {
       error: `GoCardless auto-map failed: ${err.response?.status || err.message}`
     };
+    await notifyAdminAlert({
+      severity: "error",
+      title: "Manual GoCardless auto-map failed",
+      summary: "A manually triggered GoCardless active mandate auto-map failed.",
+      facts: [
+        { title: "Error", value: err.response?.status || err.message }
+      ]
+    });
   }
 
   res.redirect("/admin/gocardless");
@@ -1022,6 +1149,14 @@ app.post("/admin/sync", requireAdminAuth, async (_req, res) => {
     console.log("✅ Manual sync completed");
   } catch (err) {
     console.error("❌ Manual sync failed:", err);
+    await notifyAdminAlert({
+      severity: "error",
+      title: "Manual Xero sync failed",
+      summary: "A manually triggered Xero contact sync failed.",
+      facts: [
+        { title: "Error", value: err.response?.status || err.message }
+      ]
+    });
   }
 
   res.redirect("/admin");
@@ -1044,6 +1179,14 @@ app.post("/admin/sync/full", requireAdminAuth, async (_req, res) => {
     console.log("✅ Full resync completed");
   } catch (err) {
     console.error("❌ Full resync failed:", err);
+    await notifyAdminAlert({
+      severity: "error",
+      title: "Full Xero resync failed",
+      summary: "A manually triggered full Xero contact resync failed.",
+      facts: [
+        { title: "Error", value: err.response?.status || err.message }
+      ]
+    });
   }
 
   res.redirect("/admin");

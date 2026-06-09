@@ -5,7 +5,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "check": "node --check server.js && node --check server-admin.js && node --check lib/config.js && node --check lib/xero.js && node --check lib/gocardless.js && node --check lib/gocardless-map.js && node --check lib/halo.js && node --check lib/halo-direct-debit.js && node --check lib/admin-auth.js && node --check scripts/sync-xero-contacts.js && node --check scripts/run-xero-drift.js",
+    "check": "node --check server.js && node --check server-admin.js && node --check lib/config.js && node --check lib/xero.js && node --check lib/gocardless.js && node --check lib/gocardless-map.js && node --check lib/halo.js && node --check lib/halo-direct-debit.js && node --check lib/admin-auth.js && node --check lib/alerts.js && node --check scripts/sync-xero-contacts.js && node --check scripts/run-xero-drift.js",
     "test": "npm run check"
   },
   "keywords": [],
