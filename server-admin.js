@@ -28,6 +28,7 @@ import {
   searchGoCardlessCustomersWithMandates,
   testGoCardlessConnection
 } from "./lib/gocardless.js";
+import { syncHaloDirectDebitFields } from "./lib/halo-direct-debit.js";
 import { clearHaloTokenCache, getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
 import {
   deleteGoCardlessMapping,
@@ -112,6 +113,12 @@ function popAdminFlash(req) {
   };
 }
 
+function popDirectDebitSyncResult(req) {
+  const result = req.session?.directDebitSyncResult || null;
+  if (req.session) delete req.session.directDebitSyncResult;
+  return result;
+}
+
 let goCardlessAutoMapRunning = false;
 
 async function runGoCardlessAutoMap(reason = "scheduled") {
@@ -136,6 +143,20 @@ async function runGoCardlessAutoMap(reason = "scheduled") {
       mappingsCreated: result.mappingsCreated,
       skipped: result.skipped
     });
+
+    try {
+      const directDebitResult = await syncHaloDirectDebitFields();
+      console.log("Halo Direct Debit custom-field sync complete", {
+        reason,
+        totalMappings: directDebitResult.totalMappings,
+        updated: directDebitResult.updated,
+        alreadyCurrent: directDebitResult.alreadyCurrent,
+        skipped: directDebitResult.skipped,
+        failed: directDebitResult.failed
+      });
+    } catch (err) {
+      console.warn("Halo Direct Debit custom-field sync failed:", err.response?.status || err.message);
+    }
   } catch (err) {
     console.warn("GoCardless auto-map failed:", err.response?.status || err.message);
   } finally {
@@ -494,7 +515,8 @@ app.get("/admin/PSA", requireAdminAuth, async (req, res) => {
     res.render("admin/psa", {
       haloConfig,
       haloTest,
-      flash: popAdminFlash(req)
+      flash: popAdminFlash(req),
+      directDebitSyncResult: popDirectDebitSyncResult(req)
     });
   } catch (err) {
     console.error("❌ admin/PSA error", err);
@@ -550,6 +572,42 @@ app.get("/admin/PSA/test", requireAdminAuth, async (req, res) => {
   } catch (err) {
     req.session.flash = {
       error: `Halo API check failed: ${err.response?.status || err.message}`
+    };
+  }
+
+  res.redirect("/admin/PSA");
+});
+
+app.post("/admin/PSA/direct-debit-sync", requireAdminAuth, async (req, res) => {
+  try {
+    const dryRun = req.body.mode !== "apply";
+    const result = await syncHaloDirectDebitFields({ dryRun });
+    req.session.directDebitSyncResult = {
+      dryRun,
+      totalMappings: result.totalMappings,
+      updated: result.updated,
+      wouldUpdate: result.wouldUpdate,
+      alreadyCurrent: result.alreadyCurrent,
+      skipped: result.skipped,
+      failed: result.failed,
+      skippedItems: result.results
+        .filter(item => item.skipped || item.reason === "failed")
+        .slice(0, 10)
+        .map(item => ({
+          reason: item.reason,
+          haloClientName: item.haloClientName,
+          xeroContactGuid: item.xeroContactGuid,
+          error: item.error
+        }))
+    };
+    req.session.flash = {
+      success: dryRun
+        ? `Direct Debit dry run complete. ${result.wouldUpdate} would be updated; ${result.alreadyCurrent} already current; ${result.skipped} skipped; ${result.failed} failed.`
+        : `Direct Debit sync complete. ${result.updated} updated; ${result.alreadyCurrent} already current; ${result.skipped} skipped; ${result.failed} failed.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: `Direct Debit sync failed: ${err.response?.status || err.message}`
     };
   }
 

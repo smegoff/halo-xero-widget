@@ -53,6 +53,12 @@ client-credentials application. The client secret is write-only; leave it blank
 to keep the current secret. The page can request a bearer token and perform a
 read-only client list call. It does not update Halo records.
 
+The same page can sync the Halo Area custom field **Active Direct Debit
+Mandate** (`CFDirectDebitActive`, ID `278`). Run **Dry Run Sync** first to check
+how many mapped customers would change, then **Sync to Halo** to write `Active`,
+`Not active`, or `Cancelled`. The scheduled GoCardless auto-map also runs this
+Halo field sync so new safe mappings are pushed back into Halo automatically.
+
 ## 3. GoCardless Settings
 
 ![GoCardless settings](screenshots/admin-gocardless-settings.png)

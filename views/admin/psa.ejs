@@ -174,9 +174,101 @@
     </div>
 
     <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
-      <h2 class="text-xl font-semibold">Next Integration Step</h2>
-      <p class="text-sm text-slate-500 mt-2">
-        This page proves connectivity only. Writing mandate status back to Halo will be added after the target custom field is confirmed.
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold">Direct Debit Custom Field</h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Populates Area custom field CFDirectDebitActive from the existing Xero GUID to GoCardless mapping.
+          </p>
+        </div>
+        <span class="inline-flex shrink-0 rounded-full bg-[#e6f4f3] px-3 py-1 text-sm font-medium text-[#087f7b]">
+          Field ID 278
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+        <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+          <div class="text-slate-500">Field Label</div>
+          <div class="mt-1 font-medium">Active Direct Debit Mandate</div>
+        </div>
+        <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+          <div class="text-slate-500">Stored In</div>
+          <div class="mt-1 font-medium">Area</div>
+        </div>
+        <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4">
+          <div class="text-slate-500">Values</div>
+          <div class="mt-1 font-medium">Active · Not active · Cancelled</div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <form method="POST" action="/admin/PSA/direct-debit-sync">
+          <input type="hidden" name="mode" value="dry-run" />
+          <button type="submit" class="inline-flex rounded-full border border-[#dbe3ec] bg-white px-4 py-2 text-sm font-medium hover:bg-[#f6fbfb]">
+            Dry Run Sync
+          </button>
+        </form>
+
+        <form method="POST" action="/admin/PSA/direct-debit-sync" onsubmit="return confirm('Update Halo client custom field CFDirectDebitActive for mapped GoCardless customers?');">
+          <input type="hidden" name="mode" value="apply" />
+          <button type="submit" class="inline-flex rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+            Sync to Halo
+          </button>
+        </form>
+      </div>
+
+      <% if (directDebitSyncResult) { %>
+        <div class="mt-4 rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-4 text-sm">
+          <div class="font-semibold">
+            <%= directDebitSyncResult.dryRun ? "Dry Run Result" : "Last Sync Result" %>
+          </div>
+          <div class="mt-2 grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div>
+              <div class="text-xs text-slate-500">Mappings</div>
+              <div class="font-medium"><%= directDebitSyncResult.totalMappings %></div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500"><%= directDebitSyncResult.dryRun ? "Would Update" : "Updated" %></div>
+              <div class="font-medium"><%= directDebitSyncResult.dryRun ? directDebitSyncResult.wouldUpdate : directDebitSyncResult.updated %></div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Current</div>
+              <div class="font-medium"><%= directDebitSyncResult.alreadyCurrent %></div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Skipped</div>
+              <div class="font-medium"><%= directDebitSyncResult.skipped %></div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Failed</div>
+              <div class="font-medium"><%= directDebitSyncResult.failed %></div>
+            </div>
+          </div>
+
+          <% if (directDebitSyncResult.skippedItems?.length) { %>
+            <div class="mt-3 text-xs text-slate-500">First skipped items:</div>
+            <div class="mt-2 space-y-1 text-xs">
+              <% directDebitSyncResult.skippedItems.forEach(item => { %>
+                <div class="break-all rounded-md border border-slate-200 bg-white px-3 py-2">
+                  <span class="font-medium"><%= item.reason %></span>
+                  <% if (item.haloClientName) { %>
+                    · <%= item.haloClientName %>
+                  <% } %>
+                  <% if (item.xeroContactGuid) { %>
+                    · <%= item.xeroContactGuid %>
+                  <% } %>
+                  <% if (item.error) { %>
+                    · <%= item.error %>
+                  <% } %>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+
+      <p class="mt-4 text-xs text-slate-500">
+        Mapped customers with an active mandate are written as Active. Mapped customers with a cancelled mandate and no active mandate are written as Cancelled. Other mapped customers are written as Not active.
       </p>
     </div>
   </div>

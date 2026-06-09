@@ -62,6 +62,13 @@ write-only; leaving it blank keeps the current secret. The test requests a
 bearer token from `/auth/token` and performs a read-only `GET /Client?count=1`
 call.
 
+The `/admin/PSA` page also includes a Direct Debit custom-field sync. It uses
+the existing Xero Contact GUID to GoCardless customer mapping, finds the
+matching Halo client by `xeroid`, and writes Area custom field
+`CFDirectDebitActive` / ID `278` with `Active`, `Not active`, or `Cancelled`.
+The scheduled GoCardless auto-map runs the same Halo field sync after it creates
+safe missing mappings.
+
 ## Finance Caching
 
 The finance tab caches Xero invoice data by Xero Contact GUID. This reduces
