@@ -92,6 +92,16 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  res.locals.currentAdmin = req.session?.admin
+    ? {
+        id: req.session.adminUserId || null,
+        username: req.session.adminUsername || "Admin"
+      }
+    : null;
+  next();
+});
+
 // -------------------------------------------------
 // AUTH MIDDLEWARE
 // -------------------------------------------------

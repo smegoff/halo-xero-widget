@@ -32,6 +32,8 @@ The dashboard gives a quick operational view:
 - Last Xero contact sync state.
 - Runtime configuration for cache, export links, and GoCardless auto-map.
 - Grouped action sections for API connections, sync/data tasks, and operations.
+- Signed-in admin profile block with quick links to profile management and
+  logout.
 
 ### Runtime Configuration
 
