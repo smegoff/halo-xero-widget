@@ -10,6 +10,7 @@ PostgreSQL, then queries Xero by GUID. Runtime Xero name matching is avoided.
 - `server.js`: Halo finance widget on port `3000`.
 - `server-admin.js`: admin portal on port `3001`.
 - `lib/xero.js`: Xero Custom Connection auth using `client_credentials`.
+- `lib/halo.js`: HaloPSA API auth using `client_credentials`.
 - `lib/resolver.js`: exact Halo client name to Xero Contact GUID resolver.
 - `scripts/sync-xero-contacts.js`: Xero contact sync into Postgres.
 - `scripts/run-xero-drift.js`: stored drift detection scan.
@@ -37,6 +38,27 @@ XERO_SCOPES=accounting.contacts.read accounting.invoices.read
 
 `tokens.json` and OAuth callback re-auth are not required for Custom
 Connections.
+
+## Halo API
+
+The admin console can validate a direct HaloPSA API application using OAuth2
+client credentials. This is the foundation for later writing Direct Debit state
+back into Halo custom fields.
+
+Required `.env` values:
+
+```env
+HALO_RESOURCE_SERVER_URL=https://halo.engagetech.nz/api
+HALO_AUTH_SERVER_URL=https://halo.engagetech.nz/auth
+HALO_TENANT=engagetech
+HALO_CLIENT_ID=
+HALO_CLIENT_SECRET=
+HALO_SCOPES=all
+```
+
+The admin dashboard shows **Halo API Status** and includes **Test Halo API**.
+The test requests a bearer token from `/auth/token` and performs a read-only
+`GET /Client?count=1` call.
 
 ## Finance Caching
 

@@ -26,12 +26,13 @@ the configured session period.
 The dashboard gives a quick operational view:
 
 - Database connectivity.
+- Halo API health.
 - Xero Custom Connection health.
 - GoCardless API health.
 - Last Xero contact sync state.
 - Runtime configuration for cache, export links, and GoCardless auto-map.
-- Action buttons for sync, full resync, Xero health check, logs, drift, and
-  GoCardless settings.
+- Action buttons for sync, full resync, Halo/Xero health checks, logs, drift,
+  and GoCardless settings.
 
 ### Runtime Configuration
 
@@ -44,6 +45,12 @@ Use **Runtime Configuration** to adjust:
 
 Changes are written to the runtime config JSON file and are picked up without a
 service restart.
+
+### Halo API Check
+
+Use **Test Halo API** to validate the Halo client-credentials application. The
+check requests a bearer token and performs a read-only client list call. It does
+not update Halo records.
 
 ## 3. GoCardless Settings
 

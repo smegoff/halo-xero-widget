@@ -89,6 +89,22 @@
           Token: <span class="font-medium"><%= runtimeConfig.goCardlessAccessTokenSource %></span>
         </div>
       </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <div class="text-sm text-slate-500 mb-2">Halo API Status</div>
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+          <%= haloStatus.state === 'ok' ? 'bg-[#e6f4f3] text-[#087f7b]' : '' %>
+          <%= haloStatus.state === 'warn' ? 'bg-amber-100 text-amber-800' : '' %>
+          <%= haloStatus.state === 'error' ? 'bg-rose-100 text-rose-800' : '' %>">
+          <%= haloStatus.label %>
+        </span>
+        <div class="text-xs text-slate-500 mt-3">
+          Tenant: <span class="font-medium"><%= haloConfig.tenant || "Not available" %></span>
+        </div>
+        <div class="text-xs text-slate-500 mt-1">
+          Client: <span class="font-medium"><%= haloConfig.clientIdSuffix ? `...${haloConfig.clientIdSuffix}` : "Not configured" %></span>
+        </div>
+      </div>
     </div>
 
     <div id="runtime-config" class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-6 mb-6">
@@ -241,6 +257,16 @@
           <div class="font-semibold">Test Xero Connection</div>
           <div class="text-sm text-slate-600 mt-1">
             Validate the Custom Connection credentials.
+          </div>
+        </a>
+
+        <a
+          href="/admin/halo/test"
+          class="block p-4 rounded-lg bg-white hover:bg-[#f6fbfb] border border-[#dbe3ec] transition"
+        >
+          <div class="font-semibold">Test Halo API</div>
+          <div class="text-sm text-slate-600 mt-1">
+            Validate the Halo client-credentials API connection.
           </div>
         </a>
 

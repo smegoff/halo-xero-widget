@@ -25,6 +25,8 @@ Required values:
 - PostgreSQL connection: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`,
   `DB_PASSWORD`, `DB_SSL`
 - Halo iframe secret: `HMAC_SECRET`
+- Halo API: `HALO_RESOURCE_SERVER_URL`, `HALO_AUTH_SERVER_URL`,
+  `HALO_TENANT`, `HALO_CLIENT_ID`, `HALO_CLIENT_SECRET`, `HALO_SCOPES`
 - Xero Custom Connection: `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`,
   `XERO_SCOPES`
 - Export signing: `EXPORT_TOKEN_SECRET`
@@ -96,6 +98,7 @@ Expected:
 - `halo-xero` and `halo-xero-admin` are online.
 - `/` returns `200`.
 - `/admin` redirects unauthenticated users to login.
+- The admin dashboard **Halo API Status** is `API OK` after sign-in.
 
 ## Rollback
 

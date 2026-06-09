@@ -25,6 +25,7 @@ import {
   searchGoCardlessCustomersWithMandates,
   testGoCardlessConnection
 } from "./lib/gocardless.js";
+import { getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
 import {
   deleteGoCardlessMapping,
   listGoCardlessMappings,
@@ -246,6 +247,7 @@ async function getDashboardStatus() {
     db: { state: "ok", label: "Healthy" },
     auth: { state: "unknown", label: "Unknown" },
     goCardless: { state: "unknown", label: "Unknown" },
+    halo: { state: "unknown", label: "Unknown" },
     sync: { state: "unknown", label: "Unknown" }
   };
 
@@ -286,6 +288,19 @@ async function getDashboardStatus() {
     }
   } catch {
     status.goCardless = { state: "error", label: "API Check Failed" };
+  }
+
+  // Halo
+  try {
+    const haloConfig = getHaloConfigStatus();
+    if (!haloConfig.configured) {
+      status.halo = { state: "warn", label: "Not Configured" };
+    } else {
+      await testHaloConnection();
+      status.halo = { state: "ok", label: "API OK" };
+    }
+  } catch {
+    status.halo = { state: "error", label: "API Check Failed" };
   }
 
   return status;
@@ -389,6 +404,8 @@ app.get("/admin", requireAdminAuth, async (_req, res) => {
       dbStatus: dashboardStatus.db,
       authStatus: dashboardStatus.auth,
       goCardlessStatus: dashboardStatus.goCardless,
+      haloStatus: dashboardStatus.halo,
+      haloConfig: getHaloConfigStatus(),
       syncStatus,
       runtimeConfig,
       flash: popAdminFlash(_req)
@@ -701,6 +718,24 @@ app.get("/admin/xero/connect", requireAdminAuth, async (_req, res) => {
 
 app.get("/admin/xero/callback", requireAdminAuth, (_req, res) => {
   res.status(410).send("Xero Custom Connections do not use an OAuth callback.");
+});
+
+// -------------------------------------------------
+// HALO API CHECK
+// -------------------------------------------------
+app.get("/admin/halo/test", requireAdminAuth, async (req, res) => {
+  try {
+    const result = await testHaloConnection();
+    req.session.flash = {
+      success: `Halo API check passed. ${result.recordCount} clients visible to this API application.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: `Halo API check failed: ${err.response?.status || err.message}`
+    };
+  }
+
+  res.redirect("/admin");
 });
 
 // -------------------------------------------------
