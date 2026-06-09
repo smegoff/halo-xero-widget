@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Users</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+  <div class="max-w-6xl mx-auto">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-[24px] font-semibold tracking-tight">Admin Users</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          Manage admin accounts, password resets, lockouts, and login audit history.
+        </p>
+      </div>
+      <a href="/admin" class="inline-flex px-4 py-2 rounded-full bg-white border border-[#dbe3ec] text-sm font-medium hover:bg-[#f6fbfb]">
+        Back to Admin
+      </a>
+    </div>
+
+    <% if (flash?.success) { %>
+      <div class="mb-4 rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
+        <%= flash.success %>
+      </div>
+    <% } %>
+
+    <% if (flash?.error) { %>
+      <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <%= flash.error %>
+      </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 lg:col-span-2">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-xl font-semibold">Accounts</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Lockout: <%= securityConfig.maxFailedLogins %> failed attempts, then <%= securityConfig.lockoutMinutes %> minutes.
+            </p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-[#f4f6f8] border-b border-[#dbe3ec]">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold">Username</th>
+                <th class="px-3 py-2 text-left font-semibold">Status</th>
+                <th class="px-3 py-2 text-left font-semibold">Failures</th>
+                <th class="px-3 py-2 text-left font-semibold">Last Login</th>
+                <th class="px-3 py-2 text-left font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% users.forEach(user => { %>
+                <% const locked = user.locked_until && new Date(user.locked_until).getTime() > Date.now(); %>
+                <tr class="border-b border-slate-100 align-top">
+                  <td class="px-3 py-3 font-medium">
+                    <%= user.username %>
+                    <% if (user.id === currentAdminUserId) { %>
+                      <span class="ml-2 rounded-full bg-[#e6f4f3] px-2 py-0.5 text-xs font-medium text-[#087f7b]">You</span>
+                    <% } %>
+                  </td>
+                  <td class="px-3 py-3">
+                    <% if (!user.is_active) { %>
+                      <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Disabled</span>
+                    <% } else if (locked) { %>
+                      <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-medium text-rose-800">Locked</span>
+                      <div class="mt-1 text-xs text-slate-500"><%= user.locked_until %></div>
+                    <% } else { %>
+                      <span class="rounded-full bg-[#e6f4f3] px-2 py-1 text-xs font-medium text-[#087f7b]">Active</span>
+                    <% } %>
+                  </td>
+                  <td class="px-3 py-3"><%= user.failed_login_count %></td>
+                  <td class="px-3 py-3 text-xs text-slate-500"><%= user.last_login_at || "Never" %></td>
+                  <td class="px-3 py-3">
+                    <div class="space-y-2">
+                      <form method="POST" action="/admin/users/<%= user.id %>/password" class="flex gap-2">
+                        <input
+                          type="password"
+                          name="password"
+                          autocomplete="new-password"
+                          minlength="14"
+                          required
+                          placeholder="New password"
+                          class="min-w-0 flex-1 rounded-lg border border-[#dbe3ec] px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+                        />
+                        <button type="submit" class="rounded-full border border-[#dbe3ec] bg-white px-3 py-2 text-xs font-medium hover:bg-[#f6fbfb]">
+                          Set
+                        </button>
+                      </form>
+
+                      <div class="flex flex-wrap gap-2">
+                        <form method="POST" action="/admin/users/<%= user.id %>/unlock">
+                          <button type="submit" class="rounded-full border border-[#dbe3ec] bg-white px-3 py-1.5 text-xs font-medium hover:bg-[#f6fbfb]">
+                            Unlock
+                          </button>
+                        </form>
+
+                        <form method="POST" action="/admin/users/<%= user.id %>/active" onsubmit="return confirm('Change this admin account status?');">
+                          <input type="hidden" name="isActive" value="<%= user.is_active ? 'false' : 'true' %>" />
+                          <button type="submit" class="rounded-full border border-[#dbe3ec] bg-white px-3 py-1.5 text-xs font-medium hover:bg-[#f6fbfb]">
+                            <%= user.is_active ? "Disable" : "Enable" %>
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold">Create Admin</h2>
+        <form method="POST" action="/admin/users" class="mt-4 space-y-4">
+          <label class="block">
+            <span class="text-sm text-slate-500">Username</span>
+            <input
+              name="username"
+              required
+              minlength="3"
+              maxlength="80"
+              autocomplete="off"
+              class="mt-1 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+          <label class="block">
+            <span class="text-sm text-slate-500">Password</span>
+            <input
+              type="password"
+              name="password"
+              required
+              minlength="14"
+              autocomplete="new-password"
+              class="mt-1 w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+            />
+          </label>
+          <button type="submit" class="inline-flex w-full justify-center rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+            Create Admin User
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+      <h2 class="text-xl font-semibold mb-4">Login Audit</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-[#f4f6f8] border-b border-[#dbe3ec]">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold">Time</th>
+              <th class="px-3 py-2 text-left font-semibold">Username</th>
+              <th class="px-3 py-2 text-left font-semibold">Result</th>
+              <th class="px-3 py-2 text-left font-semibold">IP</th>
+              <th class="px-3 py-2 text-left font-semibold">User Agent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% audits.forEach(audit => { %>
+              <tr class="border-b border-slate-100 align-top">
+                <td class="px-3 py-2 text-xs text-slate-500"><%= audit.created_at %></td>
+                <td class="px-3 py-2 font-medium"><%= audit.username || "Unknown" %></td>
+                <td class="px-3 py-2">
+                  <% if (audit.success) { %>
+                    <span class="rounded-full bg-[#e6f4f3] px-2 py-1 text-xs font-medium text-[#087f7b]">Success</span>
+                  <% } else { %>
+                    <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-medium text-rose-800"><%= audit.failure_reason || "Failed" %></span>
+                  <% } %>
+                </td>
+                <td class="px-3 py-2 text-xs text-slate-600"><%= audit.ip_address || "Not captured" %></td>
+                <td class="px-3 py-2 text-xs text-slate-500 break-all"><%= audit.user_agent || "Not captured" %></td>
+              </tr>
+            <% }) %>
+            <% if (!audits.length) { %>
+              <tr>
+                <td colspan="5" class="px-3 py-4 text-sm text-slate-500">No login audit rows yet.</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

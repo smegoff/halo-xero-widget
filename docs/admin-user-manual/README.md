@@ -120,6 +120,14 @@ Use **Health Check** from the Operations action group to view a readable status
 page for database, Xero, GoCardless, Halo API, and Xero contact sync health.
 Machine-readable output remains available at `/admin/health.json`.
 
+### Admin Users
+
+Use **Admin Users** from the Operations action group to create admin accounts,
+set passwords, unlock accounts, enable/disable users, and review login audit
+history. Passwords are stored as bcrypt hashes. By default, an account is locked
+for 15 minutes after 3 failed login attempts; these thresholds can be changed
+with `ADMIN_MAX_FAILED_LOGINS` and `ADMIN_LOCKOUT_MINUTES`.
+
 ## 6. App Exceptions
 
 ![Admin exceptions](screenshots/admin-exceptions.png)

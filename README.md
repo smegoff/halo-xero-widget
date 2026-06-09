@@ -145,6 +145,26 @@ https://widget.example.com/finance?area=$AREA&agentId=$LOGGEDINAGENTID&hmac=$HMA
 `$AREA` is the reliable Halo client-context value. The widget preserves special
 handling for unencoded `&` in Halo client names.
 
+## Admin Security
+
+Admin login uses database-backed users in `halo.admin_user` with bcrypt password
+hashes. The first account is seeded from `ADMIN_USERNAME` and `ADMIN_PASSWORD`
+only when no admin users exist. Login attempts are written to
+`halo.admin_login_audit`.
+
+Relevant `.env` values:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-initial-bootstrap-password
+ADMIN_SESSION_SECRET=replace-with-long-random-session-secret
+ADMIN_MAX_FAILED_LOGINS=3
+ADMIN_LOCKOUT_MINUTES=15
+```
+
+Use `/admin/users` to create additional accounts, reset passwords, unlock
+accounts, enable/disable accounts, and review login audits.
+
 ## PM2
 
 ```bash

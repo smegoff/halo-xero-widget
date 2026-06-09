@@ -31,7 +31,8 @@ Required values:
   `XERO_SCOPES`
 - Export signing: `EXPORT_TOKEN_SECRET`
 - GoCardless: `GOCARDLESS_ACCESS_TOKEN`, `GOCARDLESS_ENVIRONMENT`
-- Admin: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`
+- Admin bootstrap/security: `ADMIN_USERNAME`, `ADMIN_PASSWORD`,
+  `ADMIN_SESSION_SECRET`, `ADMIN_MAX_FAILED_LOGINS`, `ADMIN_LOCKOUT_MINUTES`
 
 ## Fresh Install
 
@@ -132,3 +133,6 @@ sudo -u engageadmin pm2 save
 - Xero uses a Custom Connection. `tokens.json` and OAuth re-auth are not part of
   recovery.
 - GoCardless mapping data is stored in PostgreSQL, not in the repo.
+- Admin users and login audit rows are stored in PostgreSQL. The `.env`
+  `ADMIN_USERNAME` and `ADMIN_PASSWORD` values only seed the first account when
+  no admin users exist.

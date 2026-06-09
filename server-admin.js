@@ -31,6 +31,17 @@ import {
 import { syncHaloDirectDebitFields } from "./lib/halo-direct-debit.js";
 import { clearHaloTokenCache, getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
 import {
+  authenticateAdminLogin,
+  createAdminUser,
+  ensureAdminAuthTables,
+  getAdminSecurityConfig,
+  listAdminLoginAudits,
+  listAdminUsers,
+  setAdminUserActive,
+  unlockAdminUser,
+  updateAdminUserPassword
+} from "./lib/admin-auth.js";
+import {
   deleteGoCardlessMapping,
   listGoCardlessMappings,
   searchMappedHaloClients,
@@ -87,6 +98,15 @@ app.use(
 function requireAdminAuth(req, res, next) {
   if (req.session?.admin === true) return next();
   res.redirect("/admin/login");
+}
+
+function regenerateSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate(err => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
 }
 
 // -------------------------------------------------
@@ -354,20 +374,34 @@ app.get("/admin/login", (_req, res) => {
   res.render("admin/login", { error: null });
 });
 
-app.post("/admin/login", (req, res) => {
+app.post("/admin/login", async (req, res) => {
   const { username, password } = req.body;
 
-  if (
-    username === process.env.ADMIN_USERNAME &&
-    password === process.env.ADMIN_PASSWORD
-  ) {
-    req.session.admin = true;
-    return res.redirect("/admin");
-  }
+  try {
+    const result = await authenticateAdminLogin({
+      username,
+      password,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent")
+    });
 
-  res.render("admin/login", {
-    error: "Invalid username or password"
-  });
+    if (!result.ok) {
+      return res.render("admin/login", {
+        error: result.message || "Invalid username or password"
+      });
+    }
+
+    await regenerateSession(req);
+    req.session.admin = true;
+    req.session.adminUserId = result.user.id;
+    req.session.adminUsername = result.user.username;
+    return res.redirect("/admin");
+  } catch (err) {
+    console.error("❌ admin/login error", err);
+    return res.render("admin/login", {
+      error: "Login is temporarily unavailable."
+    });
+  }
 });
 
 // -------------------------------------------------
@@ -377,6 +411,96 @@ app.get("/admin/logout", (req, res) => {
   req.session.destroy(() => {
     res.redirect("/admin/login");
   });
+});
+
+// -------------------------------------------------
+// ADMIN USERS AND AUDIT
+// -------------------------------------------------
+app.get("/admin/users", requireAdminAuth, async (req, res) => {
+  try {
+    const [users, audits] = await Promise.all([
+      listAdminUsers(),
+      listAdminLoginAudits(100)
+    ]);
+
+    res.render("admin/users", {
+      users,
+      audits,
+      securityConfig: getAdminSecurityConfig(),
+      currentAdminUserId: req.session.adminUserId || null,
+      flash: popAdminFlash(req)
+    });
+  } catch (err) {
+    console.error("❌ admin/users error", err);
+    res.status(500).send("Failed to load admin users");
+  }
+});
+
+app.post("/admin/users", requireAdminAuth, async (req, res) => {
+  try {
+    await createAdminUser({
+      username: req.body.username,
+      password: req.body.password
+    });
+    req.session.flash = { success: "Admin user created." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Admin user could not be created."
+    };
+  }
+
+  res.redirect("/admin/users");
+});
+
+app.post("/admin/users/:id/password", requireAdminAuth, async (req, res) => {
+  try {
+    await updateAdminUserPassword({
+      userId: req.params.id,
+      password: req.body.password
+    });
+    req.session.flash = { success: "Admin password updated and account lockout cleared." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Admin password could not be updated."
+    };
+  }
+
+  res.redirect("/admin/users");
+});
+
+app.post("/admin/users/:id/unlock", requireAdminAuth, async (req, res) => {
+  try {
+    await unlockAdminUser(req.params.id);
+    req.session.flash = { success: "Admin user unlocked." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Admin user could not be unlocked."
+    };
+  }
+
+  res.redirect("/admin/users");
+});
+
+app.post("/admin/users/:id/active", requireAdminAuth, async (req, res) => {
+  try {
+    const targetUserId = Number.parseInt(req.params.id, 10);
+    const isActive = req.body.isActive === "true";
+    if (targetUserId === req.session.adminUserId && !isActive) {
+      throw new Error("You cannot disable your own active admin account.");
+    }
+
+    await setAdminUserActive({
+      userId: targetUserId,
+      isActive
+    });
+    req.session.flash = { success: isActive ? "Admin user enabled." : "Admin user disabled." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "Admin user status could not be changed."
+    };
+  }
+
+  res.redirect("/admin/users");
 });
 
 async function getAdminOverview() {
@@ -970,6 +1094,9 @@ const ADMIN_PORT = Number(process.env.ADMIN_PORT || 3001);
 
 app.listen(ADMIN_PORT, () => {
   console.log(`🚀 Admin portal running on port ${ADMIN_PORT}`);
+  ensureAdminAuthTables().catch(err => {
+    console.error("❌ Admin auth initialisation failed:", err.message);
+  });
   scheduleGoCardlessAutoMap(60, "startup");
 });
 
