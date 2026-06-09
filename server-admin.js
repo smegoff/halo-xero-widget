@@ -138,6 +138,138 @@ function formatLocalDate(iso) {
   }
 }
 
+const METRIC_RANGE_PRESETS = [
+  { value: "7d", label: "7 days", days: 7 },
+  { value: "30d", label: "30 days", days: 30 },
+  { value: "90d", label: "90 days", days: 90 },
+  { value: "1y", label: "1 year", days: 365 },
+  { value: "all", label: "All time", days: null }
+];
+
+function toDateInputValue(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return copy;
+}
+
+function isValidDateInput(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && toDateInputValue(parsed) === value;
+}
+
+function parseMetricsRange(query) {
+  const today = new Date();
+  const requestedRange = typeof query.range === "string" ? query.range : "";
+  const knownPreset = METRIC_RANGE_PRESETS.find(preset => preset.value === requestedRange);
+  const fromInput = typeof query.from === "string" ? query.from.trim() : "";
+  const toInput = typeof query.to === "string" ? query.to.trim() : "";
+  let customRangeError = null;
+
+  if (requestedRange === "custom" || fromInput || toInput) {
+    const from = isValidDateInput(fromInput) ? fromInput : "";
+    const to = isValidDateInput(toInput) ? toInput : "";
+    const error =
+      (fromInput && !from) || (toInput && !to)
+        ? "Use dates in YYYY-MM-DD format."
+        : from && to && from > to
+          ? "The start date must be before the end date."
+          : null;
+    customRangeError = error;
+
+    if (!error) {
+      return {
+        range: "custom",
+        label: "Custom range",
+        from,
+        to,
+        error: null
+      };
+    }
+  }
+
+  const preset = knownPreset || METRIC_RANGE_PRESETS[1];
+  if (preset.value === "all") {
+    return {
+      range: "all",
+      label: "All time",
+      from: "",
+      to: "",
+      error: null
+    };
+  }
+
+  const to = toDateInputValue(today);
+  const from = toDateInputValue(addDays(today, -(preset.days - 1)));
+
+  return {
+    range: preset.value,
+    label: preset.label,
+    from,
+    to,
+    error:
+      requestedRange === "custom" || fromInput || toInput
+        ? `${customRangeError || "Invalid custom range."} Showing the default 30 days.`
+        : null
+  };
+}
+
+function getMetricsBucket(filter) {
+  if (filter.range === "7d") return { unit: "hour", label: "Hourly" };
+  if (filter.range === "30d" || filter.range === "90d") return { unit: "day", label: "Daily" };
+  if (filter.range === "1y") return { unit: "week", label: "Weekly" };
+  if (filter.range === "all") return { unit: "month", label: "Monthly" };
+
+  if (filter.from && filter.to) {
+    const from = new Date(`${filter.from}T00:00:00.000Z`);
+    const to = new Date(`${filter.to}T00:00:00.000Z`);
+    const days = Math.floor((to.getTime() - from.getTime()) / 86400000) + 1;
+
+    if (days <= 7) return { unit: "hour", label: "Hourly" };
+    if (days <= 120) return { unit: "day", label: "Daily" };
+    if (days <= 730) return { unit: "week", label: "Weekly" };
+  }
+
+  return { unit: "month", label: "Monthly" };
+}
+
+function buildMetricsSummary(rows, rawSamples = rows.length) {
+  if (!rows.length) {
+    return {
+      samples: 0,
+      rawSamples,
+      firstRecordedAt: null,
+      latestRecordedAt: null,
+      latestTotalClients: null,
+      latestMappedClients: null,
+      totalClientDelta: null,
+      mappedClientDelta: null,
+      latestMappedPercent: null
+    };
+  }
+
+  const first = rows[0];
+  const latest = rows[rows.length - 1];
+  const latestTotal = Number(latest.total_clients || 0);
+  const latestMapped = Number(latest.mapped_clients || 0);
+
+  return {
+    samples: rows.length,
+    rawSamples,
+    firstRecordedAt: first.recorded_at,
+    latestRecordedAt: latest.recorded_at,
+    latestTotalClients: latestTotal,
+    latestMappedClients: latestMapped,
+    totalClientDelta: latestTotal - Number(first.total_clients || 0),
+    mappedClientDelta: latestMapped - Number(first.mapped_clients || 0),
+    latestMappedPercent: latestTotal > 0 ? (latestMapped / latestTotal) * 100 : null
+  };
+}
+
 function popAdminFlash(req) {
   const flash = req.session?.flash || {};
   if (req.session) delete req.session.flash;
@@ -1256,19 +1388,84 @@ app.listen(ADMIN_PORT, () => {
 // -------------------------------------------------
 // METRICS GRAPH
 // -------------------------------------------------
-app.get("/admin/metrics", requireAdminAuth, async (_req, res) => {
+app.get("/admin/metrics", requireAdminAuth, async (req, res) => {
   try {
+    const filter = parseMetricsRange(req.query);
+    const params = [];
+    const where = [];
+
+    if (filter.from) {
+      params.push(filter.from);
+      where.push(`recorded_at >= $${params.length}::date`);
+    }
+
+    if (filter.to) {
+      params.push(filter.to);
+      where.push(`recorded_at < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const bucket = getMetricsBucket(filter);
+    const { rows: filteredCountRows } = await pgPool.query(
+      `SELECT COUNT(*)::int AS filtered_samples FROM halo.sync_metrics ${whereSql}`,
+      params
+    );
+    const filteredSamples = filteredCountRows[0]?.filtered_samples || 0;
+    const bucketedParams = [...params, bucket.unit];
+    const bucketParam = `$${bucketedParams.length}`;
     const { rows } = await pgPool.query(`
+      WITH filtered_metrics AS (
+        SELECT
+          recorded_at,
+          total_clients,
+          mapped_clients
+        FROM halo.sync_metrics
+        ${whereSql}
+      ),
+      bucketed_metrics AS (
+        SELECT
+          date_trunc(${bucketParam}, recorded_at) AS bucket_start,
+          recorded_at,
+          total_clients,
+          mapped_clients,
+          row_number() OVER (
+            PARTITION BY date_trunc(${bucketParam}, recorded_at)
+            ORDER BY recorded_at DESC
+          ) AS bucket_rank
+        FROM filtered_metrics
+      )
       SELECT
+        bucket_start,
         recorded_at,
         total_clients,
         mapped_clients
-      FROM halo.sync_metrics
+      FROM bucketed_metrics
+      WHERE bucket_rank = 1
       ORDER BY recorded_at ASC
-      LIMIT 500
+      LIMIT 5000
+    `, bucketedParams);
+
+    const { rows: allStatsRows } = await pgPool.query(`
+      SELECT
+        COUNT(*)::int AS total_samples,
+        MIN(recorded_at) AS first_recorded_at,
+        MAX(recorded_at) AS latest_recorded_at
+      FROM halo.sync_metrics
     `);
 
-    res.render("admin/metrics", { data: rows });
+    res.render("admin/metrics", {
+      data: rows,
+      filter,
+      bucket,
+      presets: METRIC_RANGE_PRESETS,
+      summary: buildMetricsSummary(rows, filteredSamples),
+      allStats: allStatsRows[0] || {
+        total_samples: 0,
+        first_recorded_at: null,
+        latest_recorded_at: null
+      },
+      maxSamples: 5000
+    });
   } catch (err) {
     console.error("❌ metrics error", err);
     res.status(500).send("Failed to load metrics");

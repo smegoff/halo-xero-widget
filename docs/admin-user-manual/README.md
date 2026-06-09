@@ -122,6 +122,16 @@ Use **Health Check** from the Operations action group to view a readable status
 page for database, Xero, GoCardless, Halo API, and Xero contact sync health.
 Machine-readable output remains available at `/admin/health.json`.
 
+### Growth Metrics
+
+Use **Growth Metrics** from the Operations action group to review Xero client
+growth and mapped-contact coverage over time. The page defaults to the last 30
+days and supports preset ranges for 7 days, 30 days, 90 days, 1 year, all time,
+or a custom date range. Summary cards show the latest totals and the change
+across the selected range. Busy ranges are bucketed for readability, using the
+latest recorded snapshot per hour, day, week, or month depending on the selected
+range.
+
 ### Admin Users
 
 Use **Admin Users** from the Operations action group to create admin accounts,
