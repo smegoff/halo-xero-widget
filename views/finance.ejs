@@ -215,6 +215,16 @@
           >
             Mandate Active
           </a>
+        <% } else if (goCardless?.mapped && goCardless?.state === "ok" && goCardless?.primaryMandate?.statusTone === "warn") { %>
+          <a
+            href="<%= goCardless.primaryMandate.dashboardUrl || goCardless.customerUrl || '#' %>"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[13px] font-semibold capitalize text-amber-800 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+            aria-label="Open GoCardless mandate"
+          >
+            Mandate <%= goCardless.primaryMandate.statusLabel || "Pending" %>
+          </a>
         <% } else if (goCardless?.mapped && goCardless?.state === "ok") { %>
           <span class="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[13px] font-semibold text-amber-800">
             Mandate Not Active

@@ -312,7 +312,9 @@ async function runGoCardlessAutoMap(reason = "scheduled") {
     const result = await autoMapGoCardlessCustomersByXeroGuid();
     console.log("GoCardless auto-map complete", {
       reason,
+      eligibleMandatesScanned: result.mappableMandatesScanned,
       activeMandatesScanned: result.activeMandatesScanned,
+      pendingMandatesScanned: result.pendingMandatesScanned,
       candidatesFound: result.candidatesFound,
       mappingsCreated: result.mappingsCreated,
       skipped: result.skipped
@@ -357,7 +359,7 @@ async function runGoCardlessAutoMap(reason = "scheduled") {
     await notifyAdminAlert({
       severity: "error",
       title: "GoCardless auto-map failed",
-      summary: "The scheduled GoCardless active mandate auto-map failed.",
+      summary: "The scheduled GoCardless eligible-mandate auto-map failed.",
       facts: [
         { title: "Reason", value: reason },
         { title: "Error", value: err.response?.status || err.message }
@@ -1342,7 +1344,7 @@ app.post("/admin/gocardless/auto-map", requireAdminAuth, async (req, res) => {
   try {
     const result = await autoMapGoCardlessCustomersByXeroGuid();
     req.session.flash = {
-      success: `Auto-map complete. ${result.mappingsCreated} new mappings created from ${result.activeMandatesScanned} active mandates; ${result.candidatesFound} safe candidates found.`
+      success: `Auto-map complete. ${result.mappingsCreated} new mappings created from ${result.mappableMandatesScanned} eligible mandates; ${result.activeMandatesScanned} active and ${result.pendingMandatesScanned} pending/submitted; ${result.candidatesFound} safe candidates found.`
     };
   } catch (err) {
     req.session.flash = {
@@ -1351,7 +1353,7 @@ app.post("/admin/gocardless/auto-map", requireAdminAuth, async (req, res) => {
     await notifyAdminAlert({
       severity: "error",
       title: "Manual GoCardless auto-map failed",
-      summary: "A manually triggered GoCardless active mandate auto-map failed.",
+      summary: "A manually triggered GoCardless eligible-mandate auto-map failed.",
       facts: [
         { title: "Error", value: err.response?.status || err.message }
       ]

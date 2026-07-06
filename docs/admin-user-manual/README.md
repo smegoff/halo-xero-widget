@@ -68,7 +68,7 @@ Use **GoCardless Settings** to:
 
 - Save or clear the GoCardless API token override.
 - Test the GoCardless API.
-- Run the active mandate auto-map manually.
+- Run the eligible mandate auto-map manually.
 - Search Halo/Xero clients by name or Xero Contact GUID.
 - Search GoCardless customers by name, email, ID, or metadata.
 - Add or update a manual Xero Contact GUID to GoCardless customer mapping.
@@ -79,10 +79,16 @@ Use **GoCardless Settings** to:
 The auto-map process only creates a mapping when it has a safe match:
 
 - GoCardless exposes a Xero Contact GUID in metadata or related fields.
-- The active GoCardless customer name exactly matches one unambiguous Halo
-  client with a Xero Contact GUID.
+- The GoCardless customer has an active or in-progress mandate and the customer
+  name exactly matches one unambiguous Halo client with a Xero Contact GUID.
 - The GoCardless customer email resolves to exactly one Xero Contact, and that
   Xero Contact GUID exists in Halo.
+
+In-progress GoCardless mandate statuses are `pending_customer_approval`,
+`pending_submission`, and `submitted`. These statuses are eligible for safe
+mapping so the finance tab can show the live GoCardless state instead of
+**Mandate Unknown**. They are not treated as **Mandate Active** until
+GoCardless reports the mandate status as `active`.
 
 Existing manual mappings are preserved. A GoCardless customer already mapped to
 another Xero GUID is skipped.
@@ -172,6 +178,9 @@ The GoCardless status labels are:
 
 - **Mandate Active**: a mapped GoCardless customer has at least one active
   mandate. The badge opens the GoCardless mandate in the dashboard.
+- **Mandate pending/submitted**: a mapped customer has an in-progress mandate,
+  such as `pending_submission` or `submitted`. The badge opens the GoCardless
+  mandate in the dashboard.
 - **Mandate Not Active**: a mapped customer exists but no active mandate was
   found.
 - **Mandate Unknown**: no GoCardless customer is mapped, GoCardless is not

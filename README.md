@@ -113,14 +113,14 @@ GOCARDLESS_AUTO_MAP_INTERVAL_SECONDS=21600
 
 The admin console includes **GoCardless Settings** for testing the live API,
 updating the token override, searching Halo/Xero clients and GoCardless
-customers, auto-mapping active mandates when GoCardless exposes a Xero Contact
-GUID or when an active GoCardless customer name exactly matches one unambiguous
-Halo client. If GoCardless does not expose the GUID and the names differ, the
-mapper can also resolve the GoCardless customer email against Xero and use the
-unique returned Xero Contact GUID. Manual Xero GUID to GoCardless customer
-mappings remain supported. The `.env` token remains the default; an
-admin-entered token is stored in the runtime config override file and is used
-immediately.
+customers, auto-mapping eligible mandates when GoCardless exposes a Xero Contact
+GUID or when a GoCardless customer with an active, pending approval, pending
+submission, or submitted mandate exactly matches one unambiguous Halo client. If
+GoCardless does not expose the GUID and the names differ, the mapper can also
+resolve the GoCardless customer email against Xero and use the unique returned
+Xero Contact GUID. Manual Xero GUID to GoCardless customer mappings remain
+supported. The `.env` token remains the default; an admin-entered token is
+stored in the runtime config override file and is used immediately.
 
 GoCardless exceptions are available separately at
 `/admin/gocardless/exceptions`, covering failed payments, problem mandates, and
@@ -135,6 +135,10 @@ new clients do not have to wait for the next scheduled scan.
 
 When a mapped customer has an active mandate, the finance tab's **Mandate
 Active** badge links to the GoCardless mandate in the live or sandbox dashboard.
+Mapped in-progress mandates are shown with their GoCardless status, such as
+**Mandate pending submission**, and also link to the mandate dashboard. Halo's
+`CFDirectDebitActive` custom field is still only written as `Active` for true
+GoCardless `active` mandates.
 
 ## Halo Tab URL
 
