@@ -93,6 +93,109 @@
       </div>
     </div>
 
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 lg:col-span-2">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-xl font-semibold">Webhook Endpoint</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Add this URL in GoCardless and save the endpoint secret here.
+            </p>
+          </div>
+          <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium
+            <%= runtimeConfig.goCardlessWebhookSecretConfigured ? 'bg-[#e6f4f3] text-[#087f7b]' : 'bg-amber-100 text-amber-800' %>">
+            <%= runtimeConfig.goCardlessWebhookSecretConfigured ? 'Secret configured' : 'Secret missing' %>
+          </span>
+        </div>
+
+        <label class="block">
+          <span class="text-sm text-slate-500">Webhook URL</span>
+          <input
+            readonly
+            value="<%= runtimeConfig.goCardlessWebhookUrl %>"
+            class="mt-1 w-full rounded-lg border border-[#dbe3ec] bg-[#f8fafc] px-3 py-2 text-sm text-slate-700"
+          />
+        </label>
+
+        <form method="POST" action="/admin/gocardless/webhook-secret" class="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+          <input
+            type="password"
+            name="goCardlessWebhookSecret"
+            autocomplete="new-password"
+            placeholder="Paste GoCardless webhook endpoint secret"
+            required
+            class="w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+          />
+          <button type="submit" class="inline-flex justify-center px-4 py-2 rounded-full bg-[#087f7b] text-white text-sm font-medium hover:bg-[#066b68]">
+            Save Secret
+          </button>
+        </form>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+          <span>Secret source: <span class="font-medium"><%= runtimeConfig.goCardlessWebhookSecretSource %></span></span>
+          <% if (runtimeConfig.goCardlessWebhookSecretUpdatedAt) { %>
+            <span>Override updated: <span class="font-medium"><%= runtimeConfig.goCardlessWebhookSecretUpdatedAt %></span></span>
+          <% } %>
+          <span>Last received: <span class="font-medium"><%= webhookOverview.lastReceivedAt || "Never" %></span></span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold mb-4">Webhook Actions</h2>
+        <div class="space-y-3">
+          <form method="POST" action="/admin/gocardless/reconcile" onsubmit="return confirm('Reconcile mapped GoCardless customers using the public API fallback? Webhook-derived states will not be overwritten.');">
+            <button type="submit" class="block w-full rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-left text-sm font-medium text-[#087f7b] hover:bg-[#d9eeed]">
+              Reconcile GoCardless Mandates
+            </button>
+          </form>
+          <form method="POST" action="/admin/gocardless/webhook-secret/clear" onsubmit="return confirm('Clear only the webhook secret admin override? The .env secret will still be used if it exists.');">
+            <button type="submit" class="block w-full rounded-lg border border-[#f3c5c7] px-4 py-3 text-left text-sm font-medium text-rose-700 hover:bg-rose-50">
+              Clear Webhook Secret Override
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold">Recent Mandate Webhooks</h2>
+        <div class="mt-4 space-y-2">
+          <% if (!webhookOverview.recentEvents.length) { %>
+            <div class="text-sm text-slate-500">No mandate webhook events received yet.</div>
+          <% } %>
+          <% webhookOverview.recentEvents.forEach(event => { %>
+            <div class="rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] p-3 text-sm">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium"><%= event.action %></span>
+                <span class="text-xs text-slate-500"><%= event.processing_status %></span>
+              </div>
+              <div class="mt-1 text-xs text-slate-500 break-all">Mandate: <%= event.mandate_id || "n/a" %></div>
+              <div class="text-xs text-slate-500 break-all">Customer: <%= event.customer_id || "n/a" %></div>
+              <div class="text-xs text-slate-500">Received: <%= event.received_at %></div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold">Webhook Processing Failures</h2>
+        <div class="mt-4 space-y-2">
+          <% if (!webhookOverview.failedEvents.length) { %>
+            <div class="text-sm text-slate-500">No failed webhook events.</div>
+          <% } %>
+          <% webhookOverview.failedEvents.forEach(event => { %>
+            <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+              <div class="font-medium"><%= event.resource_type %> / <%= event.action %></div>
+              <div class="mt-1 text-xs break-all">Event: <%= event.event_id %></div>
+              <div class="text-xs break-all">Mandate: <%= event.mandate_id || "n/a" %></div>
+              <div class="text-xs">Error: <%= event.processing_error || "Unknown error" %></div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
       <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <h2 class="text-xl font-semibold">Find Halo/Xero Client</h2>

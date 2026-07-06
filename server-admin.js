@@ -17,17 +17,20 @@ import {
   clearAlertConfigOverride,
   clearHaloApiConfigOverride,
   clearGoCardlessAccessTokenOverride,
+  clearGoCardlessWebhookSecretOverride,
   getAlertSettings,
   getHaloApiSettings,
   getRuntimeConfig,
   updateAlertConfig,
   updateHaloApiConfig,
   updateGoCardlessAccessToken,
+  updateGoCardlessWebhookSecret,
   updateRuntimeConfig
 } from "./lib/config.js";
 import {
   autoMapGoCardlessCustomersByXeroGuid,
   getGoCardlessAdminAnomalies,
+  reconcileGoCardlessMandateStatesForMappings,
   searchGoCardlessCustomersWithMandates,
   testGoCardlessConnection
 } from "./lib/gocardless.js";
@@ -51,6 +54,7 @@ import {
   searchMappedHaloClients,
   upsertGoCardlessMapping
 } from "./lib/gocardless-map.js";
+import { getGoCardlessWebhookAdminOverview } from "./lib/gocardless-webhook-store.js";
 
 dotenv.config();
 
@@ -1121,12 +1125,13 @@ app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
 app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
   try {
     const runtimeConfig = getRuntimeConfig();
-    const [mappings, haloMatches, goCardlessMatches] = await Promise.all([
+    const [mappings, haloMatches, goCardlessMatches, webhookOverview] = await Promise.all([
       listGoCardlessMappings(),
       searchMappedHaloClients(req.query.halo || ""),
       runtimeConfig.goCardlessAccessTokenConfigured
         ? searchGoCardlessCustomersWithMandates(req.query.gc || "")
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      getGoCardlessWebhookAdminOverview()
     ]);
 
     res.render("admin/gocardless", {
@@ -1134,6 +1139,7 @@ app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
       mappings,
       haloMatches,
       goCardlessMatches,
+      webhookOverview,
       haloQuery: req.query.halo || "",
       goCardlessQuery: req.query.gc || "",
       flash: popAdminFlash(req)
@@ -1327,6 +1333,36 @@ app.post("/admin/gocardless/token/clear", requireAdminAuth, async (req, res) => 
   res.redirect("/admin/gocardless");
 });
 
+app.post("/admin/gocardless/webhook-secret", requireAdminAuth, async (req, res) => {
+  try {
+    updateGoCardlessWebhookSecret(req.body.goCardlessWebhookSecret);
+    req.session.flash = {
+      success: "GoCardless webhook secret saved. Incoming webhook signatures will be verified immediately."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless webhook secret could not be saved."
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/webhook-secret/clear", requireAdminAuth, async (req, res) => {
+  try {
+    clearGoCardlessWebhookSecretOverride();
+    req.session.flash = {
+      success: "GoCardless webhook secret override cleared. The app will use .env if present."
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless webhook secret override could not be cleared."
+    };
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
 app.get("/admin/gocardless/test", requireAdminAuth, async (req, res) => {
   try {
     await testGoCardlessConnection();
@@ -1354,6 +1390,29 @@ app.post("/admin/gocardless/auto-map", requireAdminAuth, async (req, res) => {
       severity: "error",
       title: "Manual GoCardless auto-map failed",
       summary: "A manually triggered GoCardless eligible-mandate auto-map failed.",
+      facts: [
+        { title: "Error", value: err.response?.status || err.message }
+      ]
+    });
+  }
+
+  res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/reconcile", requireAdminAuth, async (req, res) => {
+  try {
+    const result = await reconcileGoCardlessMandateStatesForMappings();
+    req.session.flash = {
+      success: `GoCardless reconciliation complete. ${result.customersScanned} customers scanned; ${result.mandatesSeen} mandates seen; ${result.storedFromApi} API fallback states stored; ${result.failed} failed.`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: `GoCardless reconciliation failed: ${err.response?.status || err.message}`
+    };
+    await notifyAdminAlert({
+      severity: "error",
+      title: "Manual GoCardless reconciliation failed",
+      summary: "A manually triggered GoCardless mandate reconciliation failed.",
       facts: [
         { title: "Error", value: err.response?.status || err.message }
       ]

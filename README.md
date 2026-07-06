@@ -109,6 +109,7 @@ Required `.env` values:
 GOCARDLESS_ACCESS_TOKEN=
 GOCARDLESS_ENVIRONMENT=live
 GOCARDLESS_AUTO_MAP_INTERVAL_SECONDS=21600
+GOCARDLESS_WEBHOOK_SECRET=
 ```
 
 The admin console includes **GoCardless Settings** for testing the live API,
@@ -126,6 +127,13 @@ GoCardless exceptions are available separately at
 `/admin/gocardless/exceptions`, covering failed payments, problem mandates, and
 duplicate-looking customer records.
 
+GoCardless webhooks are received at
+`https://widget.engagetech.nz/webhooks/gocardless`. Configure this URL in the
+GoCardless dashboard and paste the webhook endpoint secret into **GoCardless
+Settings**. Webhook events are stored in Postgres and are preferred over API
+fallback state for matching mandate IDs. Unknown or duplicate webhook events are
+ignored safely; invalid signatures are rejected.
+
 The admin service also runs the same safe auto-map in the background. By default
 it starts 60 seconds after the admin process boots and then repeats every 6
 hours. The interval can be changed in **Runtime Configuration** or by setting
@@ -140,6 +148,10 @@ Mapped in-progress mandates are shown with their GoCardless status, such as
 `CFDirectDebitActive` custom field is written as `Active` when GoCardless either
 returns an individual mandate with status `active` or marks the customer record
 with `active_mandates: true`.
+Webhook `mandates / active` events are also treated as active. Pending statuses
+such as `pending_submission` are shown as pending and are not treated as active
+unless GoCardless later sends an `active` event or the public API returns an
+active signal.
 
 ## Halo Tab URL
 

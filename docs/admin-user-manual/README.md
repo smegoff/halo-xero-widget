@@ -68,7 +68,9 @@ Use **GoCardless Settings** to:
 
 - Save or clear the GoCardless API token override.
 - Test the GoCardless API.
+- Copy the GoCardless webhook URL and save the webhook endpoint secret.
 - Run the eligible mandate auto-map manually.
+- Reconcile mapped GoCardless mandates using the public API fallback.
 - Search Halo/Xero clients by name or Xero Contact GUID.
 - Search GoCardless customers by name, email, ID, or metadata.
 - Add or update a manual Xero Contact GUID to GoCardless customer mapping.
@@ -93,6 +95,27 @@ GoCardless reports the mandate status as `active` or the customer record has
 
 Existing manual mappings are preserved. A GoCardless customer already mapped to
 another Xero GUID is skipped.
+
+### Webhook Behaviour
+
+Configure the GoCardless webhook endpoint as:
+
+```text
+https://widget.engagetech.nz/webhooks/gocardless
+```
+
+Paste the GoCardless endpoint secret into the **Webhook Endpoint** panel. The
+secret is never displayed after saving. The widget verifies
+`Webhook-Signature`, stores each event ID once, and records mandate status
+changes for audit and finance-tab display.
+
+Webhook `mandates / active` events are treated as active. Webhook `cancelled`,
+`failed`, and `expired` events are treated as inactive/problem states. Pending
+events are stored as factual statuses but are not treated as active.
+
+The manual **Reconcile GoCardless Mandates** action fetches mandate statuses
+from the public GoCardless API for mapped customers. It stores API fallback
+state only where webhook-derived state would not be overwritten.
 
 ## 4. GoCardless Exceptions
 
@@ -178,8 +201,9 @@ The Halo finance tab is anchored by Xero Contact GUID. It shows:
 The GoCardless status labels are:
 
 - **Mandate Active**: a mapped GoCardless customer has at least one active
-  mandate, or GoCardless marks the customer with `active_mandates: true`. The
-  badge opens the GoCardless mandate in the dashboard when available.
+  mandate, GoCardless sends a `mandates / active` webhook, or GoCardless marks
+  the customer with `active_mandates: true`. The badge opens the GoCardless
+  mandate in the dashboard when available.
 - **Mandate pending/submitted**: a mapped customer has an in-progress mandate,
   such as `pending_submission` or `submitted`. The badge opens the GoCardless
   mandate in the dashboard.

@@ -15,6 +15,7 @@ import { getXeroHeaders, tokens } from "./lib/xero.js";
 import { resolveXeroContactGuid } from "./lib/resolver.js";
 import { getRuntimeConfig } from "./lib/config.js";
 import { getGoCardlessSummaryForXeroGuid } from "./lib/gocardless.js";
+import { GoCardlessWebhookError, processGoCardlessWebhookRequest } from "./lib/gocardless-webhook.js";
 
 dotenv.config();
 console.log("🔥 SERVER.JS LOADED — WIDGET STABLE BUILD —", new Date().toISOString());
@@ -25,6 +26,26 @@ console.log("🔥 SERVER.JS LOADED — WIDGET STABLE BUILD —", new Date().toIS
 const app = express();
 app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: true }));
+app.post(
+  "/webhooks/gocardless",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  async (req, res) => {
+    try {
+      const result = await processGoCardlessWebhookRequest(
+        req.body,
+        req.get("Webhook-Signature")
+      );
+      if (result.failed > 0) {
+        console.warn("GoCardless webhook processed with failures", result);
+      }
+      res.status(204).send();
+    } catch (err) {
+      const statusCode = err instanceof GoCardlessWebhookError ? err.statusCode : 500;
+      console.warn("GoCardless webhook rejected:", statusCode, err.message);
+      res.status(statusCode).send("GoCardless webhook rejected");
+    }
+  }
+);
 app.use(express.json());
 
 // -------------------------------------------------
