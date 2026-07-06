@@ -119,6 +119,7 @@ if [[ ! -f "${APP_DIR}/.env" ]]; then
 fi
 
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
+chmod 755 "${APP_DIR}/scripts/run-sync-xero-contacts.sh"
 
 log "Installing Node dependencies"
 sudo -u "${APP_USER}" bash -lc "cd '${APP_DIR}' && npm ci --omit=dev"

@@ -964,7 +964,7 @@ async function getAdminOverview() {
   );
 
   const syncResult = await pgPool.query(`
-    SELECT value, updated_at
+    SELECT value, updated_at AT TIME ZONE 'UTC' AS updated_at
     FROM halo.sync_state
     WHERE key = 'xero_contact_sync'
     LIMIT 1
@@ -983,6 +983,7 @@ async function getAdminOverview() {
     lastSync,
     lastSyncHuman: formatLocalDate(lastSync),
     lastSyncUpdatedAt,
+    lastSyncUpdatedAtHuman: formatLocalDate(lastSyncUpdatedAt),
     tokenMeta,
     dashboardStatus,
     syncStatus,
@@ -1057,7 +1058,7 @@ app.get("/admin/health", requireAdminAuth, async (req, res) => {
       ],
       mappedCount: overview.mappedCount,
       lastSyncHuman: overview.lastSyncHuman,
-      lastSyncUpdatedAt: overview.lastSyncUpdatedAt,
+      lastSyncUpdatedAtHuman: overview.lastSyncUpdatedAtHuman,
       runtimeConfig: overview.runtimeConfig,
       flash: popAdminFlash(req)
     });
@@ -1078,7 +1079,7 @@ app.get("/admin", requireAdminAuth, async (_req, res) => {
       mappedCount: overview.mappedCount,
       lastSync: overview.lastSync,
       lastSyncHuman: overview.lastSyncHuman,
-      lastSyncUpdatedAt: overview.lastSyncUpdatedAt,
+      lastSyncUpdatedAtHuman: overview.lastSyncUpdatedAtHuman,
       tenantName: overview.tokenMeta.tenantName,
       tenantId: overview.tokenMeta.tenantId,
       obtainedAt: overview.tokenMeta.obtainedAt,

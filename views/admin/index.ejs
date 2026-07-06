@@ -91,7 +91,10 @@
           <%= syncStatus.label %>
         </span>
         <div class="text-xs text-slate-500 mt-3">
-          Sync row updated: <span class="font-medium"><%= lastSyncUpdatedAt || "Not available" %></span>
+          Last successful sync: <span class="font-medium"><%= lastSyncHuman || "Not available" %></span>
+        </div>
+        <div class="text-xs text-slate-500 mt-1">
+          Sync row updated: <span class="font-medium"><%= lastSyncUpdatedAtHuman || "Not available" %></span>
         </div>
       </div>
 
