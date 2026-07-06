@@ -88,7 +88,8 @@ In-progress GoCardless mandate statuses are `pending_customer_approval`,
 `pending_submission`, and `submitted`. These statuses are eligible for safe
 mapping so the finance tab can show the live GoCardless state instead of
 **Mandate Unknown**. They are not treated as **Mandate Active** until
-GoCardless reports the mandate status as `active`.
+GoCardless reports the mandate status as `active` or the customer record has
+`active_mandates: true`.
 
 Existing manual mappings are preserved. A GoCardless customer already mapped to
 another Xero GUID is skipped.
@@ -177,7 +178,8 @@ The Halo finance tab is anchored by Xero Contact GUID. It shows:
 The GoCardless status labels are:
 
 - **Mandate Active**: a mapped GoCardless customer has at least one active
-  mandate. The badge opens the GoCardless mandate in the dashboard.
+  mandate, or GoCardless marks the customer with `active_mandates: true`. The
+  badge opens the GoCardless mandate in the dashboard when available.
 - **Mandate pending/submitted**: a mapped customer has an in-progress mandate,
   such as `pending_submission` or `submitted`. The badge opens the GoCardless
   mandate in the dashboard.

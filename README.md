@@ -137,8 +137,9 @@ When a mapped customer has an active mandate, the finance tab's **Mandate
 Active** badge links to the GoCardless mandate in the live or sandbox dashboard.
 Mapped in-progress mandates are shown with their GoCardless status, such as
 **Mandate pending submission**, and also link to the mandate dashboard. Halo's
-`CFDirectDebitActive` custom field is still only written as `Active` for true
-GoCardless `active` mandates.
+`CFDirectDebitActive` custom field is written as `Active` when GoCardless either
+returns an individual mandate with status `active` or marks the customer record
+with `active_mandates: true`.
 
 ## Halo Tab URL
 
