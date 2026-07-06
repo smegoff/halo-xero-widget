@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin MFA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f6fa] min-h-screen flex items-center justify-center text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+  <div class="bg-white p-8 rounded-lg shadow-sm border border-[#dbe3ec] w-full max-w-sm">
+    <h1 class="text-2xl font-semibold mb-2 text-center text-[#087f7b]">
+      Multi-Factor Authentication
+    </h1>
+    <p class="mb-6 text-center text-sm text-slate-500">
+      Enter the six-digit code for <span class="font-medium"><%= username %></span>.
+    </p>
+
+    <% if (typeof error !== "undefined" && error) { %>
+      <div class="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 p-2 rounded">
+        <%= error %>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/admin/login/mfa" class="space-y-4">
+      <label class="block">
+        <span class="block text-sm font-medium text-gray-700 mb-1">Authenticator Code</span>
+        <input
+          type="text"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          required
+          autofocus
+          class="w-full rounded-lg border border-[#dbe3ec] bg-white px-3 py-2 text-center text-lg tracking-[0.25em] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+        />
+      </label>
+
+      <button type="submit" class="w-full bg-[#087f7b] text-white py-2 rounded-full hover:bg-[#066b68] transition font-medium">
+        Verify
+      </button>
+    </form>
+  </div>
+</body>
+</html>

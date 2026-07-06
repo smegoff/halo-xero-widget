@@ -13,8 +13,9 @@ logs, and exception details are intentionally hidden.
 
 ## 1. Sign In
 
-Open `/admin` and sign in with the admin username and password held in the
-server `.env` file.
+Open `/admin` and sign in with an admin username and password. If MFA is
+enabled for that account, the login page then asks for a six-digit code from
+the enrolled authenticator app.
 
 The admin session cookie is separate from the Halo finance tab and is valid for
 the configured session period.
@@ -185,12 +186,18 @@ history. Passwords are stored as bcrypt hashes. By default, an account is locked
 for 15 minutes after 3 failed login attempts; these thresholds can be changed
 with `ADMIN_MAX_FAILED_LOGINS` and `ADMIN_LOCKOUT_MINUTES`.
 
+Use **Profile** to enroll MFA for your own account. Scan the QR code with a
+TOTP authenticator app, then enter the six-digit code to enable MFA. Admins can
+reset MFA for another user from **Admin Users** if a device is lost; the user
+can then enroll again from **Profile**.
+
 ### Alerts
 
 Use **Alerts** from the Operations action group to configure Microsoft Teams
 alerts with a webhook URL and send a test notification. Alerts are sent for
-admin account lockouts and failed sync jobs. Routine successful jobs are not
-alerted.
+admin account lockouts, failed sync jobs, stale Xero contact sync, failed
+GoCardless webhook processing, and PM2 service health issues. Routine
+successful jobs are not alerted.
 
 ## 6. App Exceptions
 

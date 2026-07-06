@@ -9,6 +9,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import axios from "axios";
 import fs from "fs";
+import QRCode from "qrcode";
 
 import { pgPool } from "./lib/db.js";
 import { getXeroHeaders, tokens } from "./lib/xero.js";
@@ -39,16 +40,24 @@ import { syncHaloDirectDebitFields, updateHaloDirectDebitFieldForMapping } from 
 import { clearHaloTokenCache, getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
 import {
   authenticateAdminLogin,
+  beginAdminMfaEnrollment,
+  completeAdminMfaLogin,
+  confirmAdminMfaEnrollment,
   createAdminUser,
+  createMfaPendingSession,
   ensureAdminAuthTables,
+  getAdminUserById,
   getAdminSecurityConfig,
+  isMfaPendingSessionValid,
   listAdminLoginAudits,
   listAdminUsers,
+  resetAdminUserMfa,
   setAdminUserActive,
   unlockAdminUser,
   updateAdminUserPassword
 } from "./lib/admin-auth.js";
 import { sendAdminAlert } from "./lib/alerts.js";
+import { buildOtpAuthUrl } from "./lib/totp.js";
 import {
   deleteGoCardlessMapping,
   getHaloClientByXeroGuid,
@@ -760,6 +769,13 @@ app.get("/admin/login", (_req, res) => {
   res.render("admin/login", { error: null });
 });
 
+async function establishAdminSession(req, user) {
+  await regenerateSession(req);
+  req.session.admin = true;
+  req.session.adminUserId = user.id;
+  req.session.adminUsername = user.username;
+}
+
 app.post("/admin/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -777,15 +793,63 @@ app.post("/admin/login", async (req, res) => {
       });
     }
 
-    await regenerateSession(req);
-    req.session.admin = true;
-    req.session.adminUserId = result.user.id;
-    req.session.adminUsername = result.user.username;
+    if (result.requiresMfa) {
+      await regenerateSession(req);
+      req.session.pendingMfa = createMfaPendingSession(result.user);
+      return res.redirect("/admin/login/mfa");
+    }
+
+    await establishAdminSession(req, result.user);
     return res.redirect("/admin");
   } catch (err) {
     console.error("❌ admin/login error", err);
     return res.render("admin/login", {
       error: "Login is temporarily unavailable."
+    });
+  }
+});
+
+app.get("/admin/login/mfa", (req, res) => {
+  if (!isMfaPendingSessionValid(req.session?.pendingMfa)) {
+    if (req.session) delete req.session.pendingMfa;
+    return res.redirect("/admin/login");
+  }
+
+  res.render("admin/mfa-login", {
+    username: req.session.pendingMfa.username,
+    error: null
+  });
+});
+
+app.post("/admin/login/mfa", async (req, res) => {
+  const pending = req.session?.pendingMfa;
+  if (!isMfaPendingSessionValid(pending)) {
+    if (req.session) delete req.session.pendingMfa;
+    return res.redirect("/admin/login");
+  }
+
+  try {
+    const result = await completeAdminMfaLogin({
+      userId: pending.userId,
+      code: req.body.code,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent")
+    });
+
+    if (!result.ok) {
+      return res.render("admin/mfa-login", {
+        username: pending.username,
+        error: result.message || "Invalid authenticator code."
+      });
+    }
+
+    await establishAdminSession(req, result.user);
+    return res.redirect("/admin");
+  } catch (err) {
+    console.error("❌ admin/login/mfa error", err);
+    return res.render("admin/mfa-login", {
+      username: pending.username,
+      error: "MFA verification is temporarily unavailable."
     });
   }
 });
@@ -887,6 +951,88 @@ app.post("/admin/users/:id/active", requireAdminAuth, async (req, res) => {
   }
 
   res.redirect("/admin/users");
+});
+
+app.post("/admin/users/:id/mfa/reset", requireAdminAuth, async (req, res) => {
+  try {
+    await resetAdminUserMfa(req.params.id);
+    req.session.flash = { success: "MFA reset for admin user. They can enroll again from their profile." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "MFA could not be reset."
+    };
+  }
+
+  res.redirect("/admin/users");
+});
+
+app.get("/admin/profile", requireAdminAuth, async (req, res) => {
+  try {
+    const user = await getAdminUserById(req.session.adminUserId);
+    if (!user) throw new Error("Current admin user was not found.");
+
+    res.render("admin/profile", {
+      user,
+      mfaSetup: req.session.mfaSetup || null,
+      flash: popAdminFlash(req)
+    });
+  } catch (err) {
+    console.error("❌ admin/profile error", err);
+    res.status(500).send("Failed to load profile");
+  }
+});
+
+app.post("/admin/profile/mfa/start", requireAdminAuth, async (req, res) => {
+  try {
+    const { user, secret } = await beginAdminMfaEnrollment(req.session.adminUserId);
+    const otpauthUrl = buildOtpAuthUrl({
+      issuer: "Halo Xero Widget",
+      accountName: user.username,
+      secret
+    });
+    const qrDataUrl = await QRCode.toDataURL(otpauthUrl, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 220
+    });
+
+    req.session.mfaSetup = {
+      secret,
+      otpauthUrl,
+      qrDataUrl,
+      username: user.username
+    };
+    req.session.flash = { success: "Scan the QR code, then enter the six-digit code to enable MFA." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "MFA setup could not be started."
+    };
+  }
+
+  res.redirect("/admin/profile");
+});
+
+app.post("/admin/profile/mfa/confirm", requireAdminAuth, async (req, res) => {
+  try {
+    await confirmAdminMfaEnrollment({
+      userId: req.session.adminUserId,
+      code: req.body.code
+    });
+    delete req.session.mfaSetup;
+    req.session.flash = { success: "MFA is now enabled for your admin account." };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "MFA code could not be confirmed."
+    };
+  }
+
+  res.redirect("/admin/profile");
+});
+
+app.post("/admin/profile/mfa/cancel", requireAdminAuth, async (req, res) => {
+  delete req.session.mfaSetup;
+  req.session.flash = { success: "MFA setup cancelled." };
+  res.redirect("/admin/profile");
 });
 
 // -------------------------------------------------

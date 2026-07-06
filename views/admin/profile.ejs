@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f6fa] min-h-screen p-6 text-[#0f172a]" style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">
+  <div class="max-w-4xl mx-auto">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-[24px] font-semibold tracking-tight">Profile</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          Manage your admin account security.
+        </p>
+      </div>
+      <a href="/admin" class="inline-flex px-4 py-2 rounded-full bg-white border border-[#dbe3ec] text-sm font-medium hover:bg-[#f6fbfb]">
+        Back to Admin
+      </a>
+    </div>
+
+    <% if (flash?.success) { %>
+      <div class="mb-4 rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
+        <%= flash.success %>
+      </div>
+    <% } %>
+
+    <% if (flash?.error) { %>
+      <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <%= flash.error %>
+      </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
+        <h2 class="text-xl font-semibold">Account</h2>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
+            <dt class="text-slate-500">Username</dt>
+            <dd class="font-medium"><%= user.username %></dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">Role</dt>
+            <dd class="font-medium"><%= user.role %></dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">MFA</dt>
+            <dd>
+              <% if (user.mfa_enabled_at) { %>
+                <span class="inline-flex rounded-full bg-[#e6f4f3] px-2 py-1 text-xs font-medium text-[#087f7b]">Enabled</span>
+              <% } else { %>
+                <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Not enabled</span>
+              <% } %>
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 lg:col-span-2">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-semibold">Authenticator App</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Use Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.
+            </p>
+          </div>
+          <% if (user.mfa_enabled_at) { %>
+            <span class="inline-flex rounded-full bg-[#e6f4f3] px-3 py-1 text-sm font-medium text-[#087f7b]">Active</span>
+          <% } %>
+        </div>
+
+        <% if (!mfaSetup) { %>
+          <form method="POST" action="/admin/profile/mfa/start" class="mt-5">
+            <button type="submit" class="inline-flex rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+              <%= user.mfa_enabled_at ? "Replace Authenticator" : "Set Up MFA" %>
+            </button>
+          </form>
+        <% } else { %>
+          <div class="mt-5 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-5">
+            <div class="rounded-lg border border-[#dbe3ec] bg-white p-3">
+              <img src="<%= mfaSetup.qrDataUrl %>" alt="MFA setup QR code" class="w-full h-auto" />
+            </div>
+            <div>
+              <label class="block">
+                <span class="text-sm text-slate-500">Manual setup key</span>
+                <input readonly value="<%= mfaSetup.secret %>" class="mt-1 w-full rounded-lg border border-[#dbe3ec] bg-[#fbfcfd] px-3 py-2 text-sm font-mono" />
+              </label>
+              <form method="POST" action="/admin/profile/mfa/confirm" class="mt-4 flex flex-wrap gap-2">
+                <input
+                  type="text"
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  required
+                  placeholder="123456"
+                  class="w-36 rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+                />
+                <button type="submit" class="rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+                  Enable MFA
+                </button>
+              </form>
+              <form method="POST" action="/admin/profile/mfa/cancel" class="mt-3">
+                <button type="submit" class="text-sm font-medium text-slate-600 hover:underline">Cancel setup</button>
+              </form>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

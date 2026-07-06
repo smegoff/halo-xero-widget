@@ -184,7 +184,9 @@ ADMIN_LOCKOUT_MINUTES=15
 ```
 
 Use `/admin/users` to create additional accounts, reset passwords, unlock
-accounts, enable/disable accounts, and review login audits.
+accounts, enable/disable accounts, reset MFA, and review login audits. Use
+`/admin/profile` to enroll a TOTP authenticator app for the signed-in account.
+Once enabled, login requires password plus a six-digit authenticator code.
 
 ## Admin Alerts
 
@@ -199,8 +201,19 @@ ALERTS_ENABLED=false
 TEAMS_WEBHOOK_URL=
 ```
 
-Alerts are sent for admin lockouts and failed sync jobs. Routine successful jobs
-do not send alerts.
+Alerts are sent for admin lockouts, failed sync jobs, stale Xero contact sync,
+failed GoCardless webhook processing, and PM2 service health issues. Routine
+successful jobs do not send alerts.
+
+The service health check is designed for cron:
+
+```cron
+*/5 * * * * /opt/halo-xero-widget/scripts/run-service-health-check.sh >> /var/log/halo-xero-service-health.log 2>&1
+```
+
+It uses `SERVICE_ALERT_SYNC_STALE_MINUTES` and
+`SERVICE_ALERT_COOLDOWN_MINUTES` when present, defaulting to 20 minutes and 60
+minutes.
 
 ## PM2
 

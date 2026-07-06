@@ -52,6 +52,7 @@
               <tr>
                 <th class="px-3 py-2 text-left font-semibold">Username</th>
                 <th class="px-3 py-2 text-left font-semibold">Status</th>
+                <th class="px-3 py-2 text-left font-semibold">MFA</th>
                 <th class="px-3 py-2 text-left font-semibold">Failures</th>
                 <th class="px-3 py-2 text-left font-semibold">Last Login</th>
                 <th class="px-3 py-2 text-left font-semibold">Actions</th>
@@ -75,6 +76,14 @@
                       <div class="mt-1 text-xs text-slate-500"><%= user.locked_until %></div>
                     <% } else { %>
                       <span class="rounded-full bg-[#e6f4f3] px-2 py-1 text-xs font-medium text-[#087f7b]">Active</span>
+                    <% } %>
+                  </td>
+                  <td class="px-3 py-3">
+                    <% if (user.mfa_enabled_at) { %>
+                      <span class="rounded-full bg-[#e6f4f3] px-2 py-1 text-xs font-medium text-[#087f7b]">Enabled</span>
+                      <div class="mt-1 text-xs text-slate-500"><%= user.mfa_enabled_at %></div>
+                    <% } else { %>
+                      <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Not enabled</span>
                     <% } %>
                   </td>
                   <td class="px-3 py-3"><%= user.failed_login_count %></td>
@@ -109,6 +118,14 @@
                             <%= user.is_active ? "Disable" : "Enable" %>
                           </button>
                         </form>
+
+                        <% if (user.mfa_enabled_at) { %>
+                          <form method="POST" action="/admin/users/<%= user.id %>/mfa/reset" onsubmit="return confirm('Reset MFA for this admin user?');">
+                            <button type="submit" class="rounded-full border border-[#dbe3ec] bg-white px-3 py-1.5 text-xs font-medium hover:bg-[#f6fbfb]">
+                              Reset MFA
+                            </button>
+                          </form>
+                        <% } %>
                       </div>
                     </div>
                   </td>

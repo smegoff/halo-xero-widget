@@ -120,6 +120,7 @@ fi
 
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 chmod 755 "${APP_DIR}/scripts/run-sync-xero-contacts.sh"
+chmod 755 "${APP_DIR}/scripts/run-service-health-check.sh"
 
 log "Installing Node dependencies"
 sudo -u "${APP_USER}" bash -lc "cd '${APP_DIR}' && npm ci --omit=dev"

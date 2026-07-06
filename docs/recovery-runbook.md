@@ -102,6 +102,21 @@ Expected:
 - `/admin` redirects unauthenticated users to login.
 - The admin dashboard **Halo API Status** is `API OK` after sign-in.
 
+## Cron Jobs
+
+The production host should run the Xero contact sync and service health check
+as the app user:
+
+```cron
+*/5 * * * * /opt/halo-xero-widget/scripts/run-sync-xero-contacts.sh >> /var/log/halo-xero-sync.log 2>&1
+*/5 * * * * /opt/halo-xero-widget/scripts/run-service-health-check.sh >> /var/log/halo-xero-service-health.log 2>&1
+```
+
+The service health check sends Teams alerts when PM2 services are not online,
+the Xero contact sync is stale, or recent GoCardless webhook processing has
+failed. Repeated identical alerts are suppressed by `SERVICE_ALERT_COOLDOWN_MINUTES`
+and stale sync detection defaults to `SERVICE_ALERT_SYNC_STALE_MINUTES=20`.
+
 ## Rollback
 
 1. Stop PM2 services:
@@ -137,3 +152,5 @@ sudo -u engageadmin pm2 save
 - Admin users and login audit rows are stored in PostgreSQL. The `.env`
   `ADMIN_USERNAME` and `ADMIN_PASSWORD` values only seed the first account when
   no admin users exist.
+- Admin MFA secrets are stored in PostgreSQL on each admin user row. Reset MFA
+  from `/admin/users` if an admin loses their authenticator device.
