@@ -113,9 +113,16 @@ as the app user:
 ```
 
 The service health check sends Teams alerts when PM2 services are not online,
-the Xero contact sync is stale, or recent GoCardless webhook processing has
-failed. Repeated identical alerts are suppressed by `SERVICE_ALERT_COOLDOWN_MINUTES`
+the Xero contact sync is stale, recent GoCardless webhook processing has
+failed, or Direct Debit mapping exceptions exist. DD exceptions include
+unmapped active/in-progress GoCardless mandate customers, duplicate mappings,
+mappings that no longer resolve to a Halo/Xero client, and GoCardless records
+that expose a different Xero GUID from the stored mapping.
+
+Repeated identical alerts are suppressed by `SERVICE_ALERT_COOLDOWN_MINUTES`
 and stale sync detection defaults to `SERVICE_ALERT_SYNC_STALE_MINUTES=20`.
+The DD exception scan is throttled separately with
+`DD_ALERT_SCAN_INTERVAL_MINUTES`, defaulting to 60 minutes.
 
 ## Rollback
 

@@ -202,8 +202,12 @@ TEAMS_WEBHOOK_URL=
 ```
 
 Alerts are sent for admin lockouts, failed sync jobs, stale Xero contact sync,
-failed GoCardless webhook processing, and PM2 service health issues. Routine
-successful jobs do not send alerts.
+failed GoCardless webhook processing, PM2 service health issues, and Direct
+Debit mapping exceptions. DD exceptions include unmapped active or in-progress
+GoCardless mandate customers, duplicate/conflicting GoCardless customer
+mappings, mappings that no longer resolve to a Halo/Xero client, and mapped
+GoCardless records that expose a different Xero GUID. Routine successful jobs
+do not send alerts.
 
 The service health check is designed for cron:
 
@@ -211,9 +215,11 @@ The service health check is designed for cron:
 */5 * * * * /opt/halo-xero-widget/scripts/run-service-health-check.sh >> /var/log/halo-xero-service-health.log 2>&1
 ```
 
-It uses `SERVICE_ALERT_SYNC_STALE_MINUTES` and
-`SERVICE_ALERT_COOLDOWN_MINUTES` when present, defaulting to 20 minutes and 60
-minutes.
+It uses `SERVICE_ALERT_SYNC_STALE_MINUTES`,
+`SERVICE_ALERT_COOLDOWN_MINUTES`, `DD_ALERT_SCAN_INTERVAL_MINUTES`,
+`DD_ALERT_UNMAPPED_LIMIT`, `DD_ALERT_MISMATCH_LIMIT`, and
+`DD_ALERT_MAPPED_CHECK_LIMIT` when present. DD exception scans default to once
+per hour even though the health cron runs every 5 minutes.
 
 ## PM2
 

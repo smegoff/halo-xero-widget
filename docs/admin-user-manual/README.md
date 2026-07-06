@@ -196,8 +196,10 @@ can then enroll again from **Profile**.
 Use **Alerts** from the Operations action group to configure Microsoft Teams
 alerts with a webhook URL and send a test notification. Alerts are sent for
 admin account lockouts, failed sync jobs, stale Xero contact sync, failed
-GoCardless webhook processing, and PM2 service health issues. Routine
-successful jobs are not alerted.
+GoCardless webhook processing, PM2 service health issues, and Direct Debit
+mapping exceptions such as unmapped active mandates, duplicate mappings,
+mappings that no longer resolve to Halo/Xero, or GoCardless records exposing a
+different Xero GUID. Routine successful jobs are not alerted.
 
 ## 6. App Exceptions
 
