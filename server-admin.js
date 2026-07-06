@@ -30,11 +30,12 @@ import {
 import {
   autoMapGoCardlessCustomersByXeroGuid,
   getGoCardlessAdminAnomalies,
+  getUnmappedGoCardlessMandateCustomers,
   reconcileGoCardlessMandateStatesForMappings,
   searchGoCardlessCustomersWithMandates,
   testGoCardlessConnection
 } from "./lib/gocardless.js";
-import { syncHaloDirectDebitFields } from "./lib/halo-direct-debit.js";
+import { syncHaloDirectDebitFields, updateHaloDirectDebitFieldForMapping } from "./lib/halo-direct-debit.js";
 import { clearHaloTokenCache, getHaloConfigStatus, testHaloConnection } from "./lib/halo.js";
 import {
   authenticateAdminLogin,
@@ -50,6 +51,7 @@ import {
 import { sendAdminAlert } from "./lib/alerts.js";
 import {
   deleteGoCardlessMapping,
+  getHaloClientByXeroGuid,
   listGoCardlessMappings,
   searchMappedHaloClients,
   upsertGoCardlessMapping
@@ -1125,13 +1127,24 @@ app.post("/admin/config/runtime", requireAdminAuth, async (req, res) => {
 app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
   try {
     const runtimeConfig = getRuntimeConfig();
-    const [mappings, haloMatches, goCardlessMatches, webhookOverview] = await Promise.all([
+    const [mappings, haloMatches, goCardlessMatches, webhookOverview, unmappedMandates] = await Promise.all([
       listGoCardlessMappings(),
       searchMappedHaloClients(req.query.halo || ""),
       runtimeConfig.goCardlessAccessTokenConfigured
         ? searchGoCardlessCustomersWithMandates(req.query.gc || "")
         : Promise.resolve([]),
-      getGoCardlessWebhookAdminOverview()
+      getGoCardlessWebhookAdminOverview(),
+      runtimeConfig.goCardlessAccessTokenConfigured
+        ? getUnmappedGoCardlessMandateCustomers()
+        : Promise.resolve({
+            configured: false,
+            items: [],
+            totals: {
+              eligibleCustomers: 0,
+              unmappedCustomers: 0,
+              activeUnmappedCustomers: 0
+            }
+          })
     ]);
 
     res.render("admin/gocardless", {
@@ -1140,6 +1153,7 @@ app.get("/admin/gocardless", requireAdminAuth, async (req, res) => {
       haloMatches,
       goCardlessMatches,
       webhookOverview,
+      unmappedMandates,
       haloQuery: req.query.halo || "",
       goCardlessQuery: req.query.gc || "",
       flash: popAdminFlash(req)
@@ -1438,6 +1452,51 @@ app.post("/admin/gocardless/mappings", requireAdminAuth, async (req, res) => {
   }
 
   res.redirect("/admin/gocardless");
+});
+
+app.post("/admin/gocardless/map-now", requireAdminAuth, async (req, res) => {
+  try {
+    const xeroContactGuid = String(
+      req.body.manualXeroContactGuid || req.body.xeroContactGuid || ""
+    ).trim();
+    const goCardlessCustomerId = String(req.body.goCardlessCustomerId || "").trim();
+
+    if (!xeroContactGuid) {
+      throw new Error("Select a Halo/Xero customer or enter a Xero Contact GUID.");
+    }
+
+    const haloClient = await getHaloClientByXeroGuid(xeroContactGuid);
+    await upsertGoCardlessMapping({
+      xeroContactGuid,
+      goCardlessCustomerId,
+      haloClientName: haloClient?.halo_client_name || req.body.goCardlessCustomerName || "",
+      notes: "Manually mapped from unmapped GoCardless mandates panel"
+    });
+
+    let syncMessage = "";
+    try {
+      const syncResult = await updateHaloDirectDebitFieldForMapping({
+        xero_contact_guid: xeroContactGuid,
+        gocardless_customer_id: goCardlessCustomerId,
+        halo_client_name: haloClient?.halo_client_name || req.body.goCardlessCustomerName || ""
+      });
+      syncMessage = syncResult.updated
+        ? " Halo Direct Debit field updated."
+        : " Halo Direct Debit field checked.";
+    } catch (syncErr) {
+      syncMessage = ` Halo Direct Debit field sync failed: ${syncErr.response?.status || syncErr.message}`;
+    }
+
+    req.session.flash = {
+      success: `GoCardless customer ${goCardlessCustomerId} mapped${haloClient?.halo_client_name ? ` to ${haloClient.halo_client_name}` : ""}.${syncMessage}`
+    };
+  } catch (err) {
+    req.session.flash = {
+      error: err.message || "GoCardless customer could not be mapped."
+    };
+  }
+
+  res.redirect("/admin/gocardless#unmapped-mandates");
 });
 
 app.post("/admin/gocardless/mappings/delete", requireAdminAuth, async (req, res) => {

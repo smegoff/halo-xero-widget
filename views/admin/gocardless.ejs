@@ -196,6 +196,127 @@
       </div>
     </div>
 
+    <div id="unmapped-mandates" class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5 mb-6">
+      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 class="text-xl font-semibold">Unmapped GoCardless Mandates</h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Eligible GoCardless customers that are not yet mapped to a Xero Contact GUID.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span class="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+            Eligible customers: <%= unmappedMandates.totals.eligibleCustomers %>
+          </span>
+          <span class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">
+            Unmapped: <%= unmappedMandates.totals.unmappedCustomers %>
+          </span>
+          <span class="rounded-full bg-[#e6f4f3] px-3 py-1 font-medium text-[#087f7b]">
+            Active unmapped: <%= unmappedMandates.totals.activeUnmappedCustomers %>
+          </span>
+        </div>
+      </div>
+
+      <% if (!runtimeConfig.goCardlessAccessTokenConfigured) { %>
+        <div class="mt-4 text-sm text-slate-500">Configure the GoCardless token to scan unmapped mandates.</div>
+      <% } else if (!unmappedMandates.items.length) { %>
+        <div class="mt-4 rounded-lg border border-[#b6dcda] bg-[#e6f4f3] px-4 py-3 text-sm text-[#087f7b]">
+          No unmapped eligible GoCardless mandates.
+        </div>
+      <% } else { %>
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-[#f4f6f8] border-b border-[#dbe3ec]">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold">GoCardless Customer</th>
+                <th class="px-3 py-2 text-left font-semibold">Mandates</th>
+                <th class="px-3 py-2 text-left font-semibold">Halo/Xero Customer</th>
+                <th class="px-3 py-2 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% unmappedMandates.items.forEach(item => { %>
+                <% const mapFormId = `map-${item.customerId}`; %>
+                <tr class="border-b border-slate-100 align-top">
+                  <td class="px-3 py-3">
+                    <div class="font-medium"><%= item.customerName || item.customerId %></div>
+                    <div class="mt-1 break-all text-xs text-slate-500">Customer ID: <%= item.customerId %></div>
+                    <% if (item.email) { %>
+                      <div class="break-all text-xs text-slate-500">Email: <%= item.email %></div>
+                    <% } %>
+                  </td>
+                  <td class="px-3 py-3">
+                    <div class="flex flex-wrap gap-2 text-xs">
+                      <% Object.entries(item.mandateStatusCounts || {}).forEach(([status, count]) => { %>
+                        <span class="rounded-full px-2 py-0.5 font-medium
+                          <%= status === 'active' ? 'bg-[#e6f4f3] text-[#087f7b]' : '' %>
+                          <%= ['pending_customer_approval', 'pending_submission', 'submitted'].includes(status) ? 'bg-amber-100 text-amber-800' : '' %>
+                          <%= ['cancelled', 'failed', 'expired'].includes(status) ? 'bg-rose-100 text-rose-800' : '' %>
+                          <%= !['active', 'pending_customer_approval', 'pending_submission', 'submitted', 'cancelled', 'failed', 'expired'].includes(status) ? 'bg-slate-100 text-slate-600' : '' %>">
+                          <%= status.replaceAll("_", " ") %>: <%= count %>
+                        </span>
+                      <% }) %>
+                    </div>
+                  </td>
+                  <td class="px-3 py-3">
+                    <div class="space-y-2">
+                      <% if (item.candidates.length) { %>
+                        <select
+                          form="<%= mapFormId %>"
+                          name="xeroContactGuid"
+                          class="w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+                        >
+                          <% if (item.candidates.length !== 1) { %>
+                            <option value="">Select Halo/Xero customer...</option>
+                          <% } %>
+                          <% item.candidates.forEach(candidate => { %>
+                            <option
+                              value="<%= candidate.xeroContactGuid %>"
+                              <%= item.suggestedXeroContactGuid === candidate.xeroContactGuid ? "selected" : "" %>
+                            >
+                              <%= candidate.haloClientName %><%= candidate.xeroContactNumber ? ` (${candidate.xeroContactNumber})` : "" %> - <%= candidate.sources.join(", ") %>
+                            </option>
+                          <% }) %>
+                        </select>
+                        <% if (item.candidates.length > 1) { %>
+                          <div class="text-xs text-amber-700">Multiple candidates found. Select the correct Halo/Xero customer before mapping.</div>
+                        <% } %>
+                      <% } else { %>
+                        <div class="text-xs text-slate-500">No safe candidate found.</div>
+                      <% } %>
+
+                      <input
+                        form="<%= mapFormId %>"
+                        name="manualXeroContactGuid"
+                        placeholder="<%= item.candidates.length ? 'Or paste a different Xero Contact GUID' : 'Paste Xero Contact GUID' %>"
+                        class="w-full rounded-lg border border-[#dbe3ec] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#087f7b]/20 focus:border-[#087f7b]"
+                      />
+                      <% if (item.notes?.length) { %>
+                        <div class="space-y-1">
+                          <% item.notes.forEach(note => { %>
+                            <div class="text-xs text-slate-500"><%= note %></div>
+                          <% }) %>
+                        </div>
+                      <% } %>
+                    </div>
+                  </td>
+                  <td class="px-3 py-3 text-right">
+                    <form id="<%= mapFormId %>" method="POST" action="/admin/gocardless/map-now">
+                      <input type="hidden" name="goCardlessCustomerId" value="<%= item.customerId %>" />
+                      <input type="hidden" name="goCardlessCustomerName" value="<%= item.customerName || item.customerId %>" />
+                      <button type="submit" class="rounded-full bg-[#087f7b] px-4 py-2 text-sm font-medium text-white hover:bg-[#066b68]">
+                        Map Now
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
       <div class="bg-white rounded-lg shadow-sm border border-[#dbe3ec] p-5">
         <h2 class="text-xl font-semibold">Find Halo/Xero Client</h2>

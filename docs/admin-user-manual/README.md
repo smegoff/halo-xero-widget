@@ -73,6 +73,8 @@ Use **GoCardless Settings** to:
 - Reconcile mapped GoCardless mandates using the public API fallback.
 - Search Halo/Xero clients by name or Xero Contact GUID.
 - Search GoCardless customers by name, email, ID, or metadata.
+- Review unmapped eligible GoCardless mandates and click **Map Now** to map
+  them to the selected Halo/Xero customer.
 - Add or update a manual Xero Contact GUID to GoCardless customer mapping.
 - Open the dedicated GoCardless Exceptions page.
 
@@ -116,6 +118,14 @@ events are stored as factual statuses but are not treated as active.
 The manual **Reconcile GoCardless Mandates** action fetches mandate statuses
 from the public GoCardless API for mapped customers. It stores API fallback
 state only where webhook-derived state would not be overwritten.
+
+### Unmapped Mandates
+
+The **Unmapped GoCardless Mandates** panel lists active and in-progress
+GoCardless customers that are not present in the widget mapping table. Use the
+candidate selector when a safe Halo/Xero candidate is shown, or paste the Xero
+Contact GUID manually, then click **Map Now**. The action saves the mapping and
+checks the Halo Direct Debit custom field for that customer.
 
 ## 4. GoCardless Exceptions
 

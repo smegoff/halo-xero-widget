@@ -127,6 +127,10 @@ GoCardless exceptions are available separately at
 `/admin/gocardless/exceptions`, covering failed payments, problem mandates, and
 duplicate-looking customer records.
 
+The GoCardless settings page also lists unmapped eligible mandate customers.
+Admins can choose a safe Halo/Xero candidate or paste a Xero Contact GUID and
+click **Map Now** to create the mapping without relying on automatic guessing.
+
 GoCardless webhooks are received at
 `https://widget.engagetech.nz/webhooks/gocardless`. Configure this URL in the
 GoCardless dashboard and paste the webhook endpoint secret into **GoCardless
