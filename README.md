@@ -202,12 +202,13 @@ TEAMS_WEBHOOK_URL=
 ```
 
 Alerts are sent for admin lockouts, failed sync jobs, stale Xero contact sync,
-failed GoCardless webhook processing, PM2 service health issues, and Direct
-Debit mapping exceptions. DD exceptions include unmapped active or in-progress
-GoCardless mandate customers, duplicate/conflicting GoCardless customer
-mappings, mappings that no longer resolve to a Halo/Xero client, and mapped
-GoCardless records that expose a different Xero GUID. Routine successful jobs
-do not send alerts.
+failed GoCardless webhook processing, and PM2 service health issues. Direct
+Debit mapping exceptions are raised as Halo Accounts tickets instead of Teams
+cards. DD exception tickets include unmapped active or in-progress GoCardless
+mandate customers, duplicate/conflicting GoCardless customer mappings, mappings
+that no longer resolve to a Halo/Xero client, mapped GoCardless records that
+expose a different Xero GUID, and GoCardless lookup failures. Routine successful
+jobs do not send alerts.
 
 The service health check is designed for cron:
 
@@ -221,12 +222,17 @@ It uses `SERVICE_ALERT_SYNC_STALE_MINUTES`,
 `DD_ALERT_MAPPED_CHECK_LIMIT` when present. DD exception scans default to once
 per hour even though the health cron runs every 5 minutes.
 
-When an unmapped mandate has exactly one safe Halo/Xero candidate, the Teams
-card includes a signed **Map** action for that customer. The link opens a small
-confirmation page and then writes the mapping plus Halo Direct Debit field sync;
-it does not require opening the full admin console. Action links are signed with
-`ADMIN_ACTION_TOKEN_SECRET`, falling back to `ADMIN_SESSION_SECRET`, and expire
-after `ADMIN_ACTION_TOKEN_TTL_SECONDS` or 24 hours by default.
+Direct Debit exception tickets are created with `sendack: false` so no customer
+acknowledgement is sent. If a single safe Halo/Xero candidate is available, the
+ticket is created under that Halo customer; otherwise it is created for the
+Accounts queue with the GoCardless customer and mandate details for manual
+review. The default routing is Accounts ticket type `38`, Accounts team `2`,
+agent `43` (`Aliah Villaruel`), priority `2`, and status `1`. Override these
+with `HALO_DD_TICKET_TYPE_ID`, `HALO_DD_TICKET_TEAM_ID`,
+`HALO_DD_TICKET_AGENT_ID`, `HALO_DD_TICKET_PRIORITY_ID`, and
+`HALO_DD_TICKET_STATUS_ID`. Ambiguous tickets use fallback client/site `1`
+(`Unknown`) unless `HALO_DD_TICKET_FALLBACK_CLIENT_ID` or
+`HALO_DD_TICKET_FALLBACK_SITE_ID` are set.
 
 ## PM2
 

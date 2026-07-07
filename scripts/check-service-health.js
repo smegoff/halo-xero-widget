@@ -2,8 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { pgPool } from "../lib/db.js";
 import { sendAdminAlert } from "../lib/alerts.js";
-import { createGoCardlessMapActionToken } from "../lib/admin-action-tokens.js";
-import { getGoCardlessDirectDebitAlertSummary } from "../lib/gocardless.js";
+import { syncDirectDebitExceptionTickets } from "../lib/halo-direct-debit-tickets.js";
 
 const execFileAsync = promisify(execFile);
 const REQUIRED_PM2_APPS = ["halo-xero", "halo-xero-admin"];
@@ -14,7 +13,6 @@ const DD_ALERT_UNMAPPED_LIMIT = Number.parseInt(process.env.DD_ALERT_UNMAPPED_LI
 const DD_ALERT_MISMATCH_LIMIT = Number.parseInt(process.env.DD_ALERT_MISMATCH_LIMIT || "25", 10);
 const DD_ALERT_MAPPED_CHECK_LIMIT = Number.parseInt(process.env.DD_ALERT_MAPPED_CHECK_LIMIT || "500", 10);
 const ADMIN_BASE_URL = String(process.env.ADMIN_BASE_URL || "https://widget.engagetech.nz/admin").replace(/\/+$/g, "");
-const GOCARDLESS_ADMIN_URL = `${ADMIN_BASE_URL}/gocardless#unmapped-mandates`;
 
 async function ensureAlertStateTable() {
   await pgPool.query("CREATE SCHEMA IF NOT EXISTS halo");
@@ -88,44 +86,6 @@ async function getWebhookIssues() {
     : [];
 }
 
-function formatUnmappedMandate(item) {
-  const statusParts = [];
-  if (Number(item.activeCount || 0) > 0) statusParts.push(`${item.activeCount} active`);
-  if (Number(item.pendingCount || 0) > 0) statusParts.push(`${item.pendingCount} pending`);
-  const status = statusParts.length ? ` - ${statusParts.join(", ")}` : "";
-  return `${item.customerName || item.customerId} (${item.customerId})${status}`;
-}
-
-function formatActionTitle(prefix, name) {
-  const cleanName = String(name || "").replace(/\s+/g, " ").trim();
-  const shortName = cleanName.length > 24 ? `${cleanName.slice(0, 21)}...` : cleanName;
-  return `${prefix} ${shortName || "customer"}`;
-}
-
-function buildMappingAction(item) {
-  if (Number(item.candidateCount || 0) !== 1 || !item.suggestedXeroContactGuid) {
-    return null;
-  }
-
-  try {
-    const candidate = item.candidates?.[0] || {};
-    const token = createGoCardlessMapActionToken({
-      xeroContactGuid: item.suggestedXeroContactGuid,
-      goCardlessCustomerId: item.customerId,
-      haloClientName: candidate.haloClientName || item.customerName || "",
-      goCardlessCustomerName: item.customerName || ""
-    });
-
-    return {
-      title: formatActionTitle("Map", item.customerName || item.customerId),
-      url: `${ADMIN_BASE_URL}/actions/gocardless/map?token=${encodeURIComponent(token)}`
-    };
-  } catch (err) {
-    console.warn("Direct Debit mapping action skipped:", item.customerId, err.message);
-    return null;
-  }
-}
-
 async function shouldRunDirectDebitExceptionScan() {
   await ensureAlertStateTable();
   const { rows } = await pgPool.query(
@@ -158,109 +118,33 @@ async function shouldRunDirectDebitExceptionScan() {
 
 async function getDirectDebitMandateIssues() {
   if (!(await shouldRunDirectDebitExceptionScan())) {
-    return { issues: [], actions: [] };
+    return [];
   }
 
-  let summary;
   try {
-    summary = await getGoCardlessDirectDebitAlertSummary({
+    const result = await syncDirectDebitExceptionTickets({
       unmappedLimit: DD_ALERT_UNMAPPED_LIMIT,
       mismatchLimit: DD_ALERT_MISMATCH_LIMIT,
-      mappedCheckLimit: DD_ALERT_MAPPED_CHECK_LIMIT,
-      includeCandidates: true
+      mappedCheckLimit: DD_ALERT_MAPPED_CHECK_LIMIT
     });
+
+    if (result.scanned > 0) {
+      console.log(
+        `Direct Debit exception ticket sync complete: ${result.created} created, ${result.existing} existing, ${result.failed} failed, ${result.scanned} scanned`
+      );
+    }
+
+    if (result.failed > 0) {
+      return [{
+        title: "Direct Debit Halo ticket creation",
+        value: `${result.failed} Direct Debit exception ticket(s) failed to create`
+      }];
+    }
+
+    return [];
   } catch (err) {
-    return {
-      issues: [{ title: "Direct Debit scan", value: `Failed: ${err.response?.status || err.message}` }],
-      actions: []
-    };
+    return [{ title: "Direct Debit scan", value: `Failed: ${err.response?.status || err.message}` }];
   }
-
-  if (!summary.configured) return { issues: [], actions: [] };
-
-  const issues = [];
-  const unmappedTotals = summary.unmapped?.totals || {};
-  const unmappedItems = summary.unmapped?.items || [];
-  const activeUnmapped = Number(unmappedTotals.activeUnmappedCustomers || 0);
-  const totalUnmapped = Number(unmappedTotals.unmappedCustomers || 0);
-  const pendingUnmapped = Math.max(totalUnmapped - activeUnmapped, 0);
-  const mapActions = [];
-
-  if (activeUnmapped > 0) {
-    issues.push({
-      title: "There are unmapped Direct Debit Mandates",
-      value: unmappedItems
-        .filter(item => Number(item.activeCount || 0) > 0)
-        .slice(0, 8)
-        .map(formatUnmappedMandate)
-        .join("\n")
-    });
-    mapActions.push(
-      ...unmappedItems
-        .filter(item => Number(item.activeCount || 0) > 0)
-        .map(buildMappingAction)
-        .filter(Boolean)
-    );
-  }
-
-  if (pendingUnmapped > 0) {
-    issues.push({
-      title: "Unmapped pending Direct Debit mandates",
-      value: unmappedItems
-        .filter(item => Number(item.activeCount || 0) === 0)
-        .slice(0, 8)
-        .map(formatUnmappedMandate)
-        .join("\n")
-    });
-    mapActions.push(
-      ...unmappedItems
-        .filter(item => Number(item.activeCount || 0) === 0)
-        .map(buildMappingAction)
-        .filter(Boolean)
-    );
-  }
-
-  if (summary.duplicateMappings.length > 0) {
-    issues.push({
-      title: "Direct Debit mapping conflicts",
-      value: summary.duplicateMappings
-        .slice(0, 5)
-        .map(item => `${item.gocardless_customer_id} mapped ${item.mapping_count} times`)
-        .join("\n")
-    });
-  }
-
-  if (summary.missingHaloClients.length > 0) {
-    issues.push({
-      title: "Direct Debit mappings missing Halo/Xero client",
-      value: summary.missingHaloClients
-        .slice(0, 5)
-        .map(item => `${item.gocardless_customer_id} -> ${item.xero_contact_guid}`)
-        .join("\n")
-    });
-  }
-
-  if (summary.exposedGuidMismatches.length > 0) {
-    issues.push({
-      title: "Direct Debit Xero GUID mismatches",
-      value: summary.exposedGuidMismatches
-        .slice(0, 5)
-        .map(item => `${item.goCardlessCustomerId}: mapped ${item.xeroContactGuid}, exposes ${item.exposedXeroContactGuids.join(", ")}`)
-        .join("\n")
-    });
-  }
-
-  if (summary.apiLookupFailures.length > 0) {
-    issues.push({
-      title: "Direct Debit lookup failures",
-      value: `${summary.apiLookupFailures.length} mapped GoCardless customer lookup(s) failed during exception scan`
-    });
-  }
-
-  return {
-    issues,
-    actions: mapActions.slice(0, 5)
-  };
 }
 
 async function shouldSendAlert(fingerprint) {
@@ -297,14 +181,12 @@ async function shouldSendAlert(fingerprint) {
 }
 
 async function main() {
-  const directDebitResult = await getDirectDebitMandateIssues();
   const issues = [
     ...(await getPm2Issues()),
     ...(await getSyncIssues()),
     ...(await getWebhookIssues()),
-    ...directDebitResult.issues
+    ...(await getDirectDebitMandateIssues())
   ];
-  const alertActions = directDebitResult.actions || [];
 
   if (!issues.length) {
     console.log("Service health OK");
@@ -320,23 +202,13 @@ async function main() {
     return;
   }
 
-  const hasDirectDebitIssue = issues.some(issue => issue.title.includes("Direct Debit") || issue.title.includes("mandate"));
-
   await sendAdminAlert({
     severity: "error",
-    title: hasDirectDebitIssue ? "There are unmapped Direct Debit Mandates" : "Halo Xero Widget service health issue",
-    summary: hasDirectDebitIssue
-      ? "Review and map these GoCardless Direct Debit mandate customers in the admin console."
-      : "One or more production service checks failed.",
+    title: "Halo Xero Widget service health issue",
+    summary: "One or more production service checks failed.",
     facts: issues.slice(0, 10),
-    actionUrl: hasDirectDebitIssue ? GOCARDLESS_ADMIN_URL : ADMIN_BASE_URL,
-    actionTitle: hasDirectDebitIssue ? "Open GoCardless Admin" : "Open Admin",
-    actions: hasDirectDebitIssue
-      ? [
-          ...alertActions,
-          { title: "Open GoCardless Admin", url: GOCARDLESS_ADMIN_URL }
-        ]
-      : []
+    actionUrl: ADMIN_BASE_URL,
+    actionTitle: "Open Admin"
   });
   console.log(`Service health alert sent: ${issues.map(issue => `${issue.title}: ${issue.value}`).join("; ")}`);
 }

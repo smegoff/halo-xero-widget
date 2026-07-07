@@ -6,6 +6,7 @@ import {
   verifyGoCardlessWebhookSignature
 } from "../lib/gocardless-webhook-utils.js";
 import { isGoCardlessActiveMandateStatus } from "../lib/gocardless-status.js";
+import { buildDirectDebitTicketExceptions } from "../lib/halo-direct-debit-tickets.js";
 
 const secret = "test-webhook-secret";
 const rawBody = Buffer.from(JSON.stringify({
@@ -39,5 +40,31 @@ assert.equal(isGoCardlessActiveMandateStatus("active"), true);
 assert.equal(isGoCardlessActiveMandateStatus("pending_submission"), false);
 assert.equal(isGoCardlessActiveMandateStatus("submitted"), false);
 assert.equal(isGoCardlessActiveMandateStatus("failed"), false);
+
+const ddExceptions = buildDirectDebitTicketExceptions({
+  configured: true,
+  unmapped: {
+    items: [
+      {
+        customerId: "CU_TEST",
+        customerName: "Test Customer",
+        activeCount: 1,
+        pendingCount: 0,
+        mandateStatusCounts: { active: 1 },
+        mandates: [{ id: "MD_TEST", status: "active" }],
+        candidates: [{ xeroContactGuid: "11111111-1111-1111-1111-111111111111", haloClientName: "Test Customer" }],
+        suggestedXeroContactGuid: "11111111-1111-1111-1111-111111111111"
+      }
+    ]
+  },
+  duplicateMappings: [],
+  missingHaloClients: [],
+  exposedGuidMismatches: [],
+  apiLookupFailures: []
+});
+assert.equal(ddExceptions.length, 1);
+assert.equal(ddExceptions[0].type, "unmapped_active_mandate");
+assert.equal(ddExceptions[0].gocardlessCustomerId, "CU_TEST");
+assert.match(ddExceptions[0].details, /Customer notification has been suppressed/);
 
 console.log("GoCardless webhook unit checks passed.");

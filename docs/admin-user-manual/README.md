@@ -1,6 +1,6 @@
 # Halo Xero Widget Admin User Manual
 
-Last updated: 2026-06-09
+Last updated: 2026-07-07
 
 This manual covers the production admin console at:
 
@@ -78,6 +78,23 @@ Use **GoCardless Settings** to:
   them to the selected Halo/Xero customer.
 - Add or update a manual Xero Contact GUID to GoCardless customer mapping.
 - Open the dedicated GoCardless Exceptions page.
+
+### Direct Debit Exception Tickets
+
+The service health check scans Direct Debit exceptions hourly. Instead of
+sending Teams cards, it now creates Accounts tickets in Halo and assigns them to
+Aliah Villaruel. Customer acknowledgements are suppressed by the integration.
+
+If the widget has exactly one safe Halo/Xero candidate, the ticket is created
+under that Halo customer. If the match is ambiguous, the ticket is still created
+for Accounts review under the Halo fallback client **Unknown** and includes the
+GoCardless customer ID, email, mandate status, mandate link, candidate notes,
+and a link back to GoCardless Settings.
+
+Accounts should open the ticket, confirm the correct Halo/Xero customer, then
+use **Map Now** or the manual mapping form in **GoCardless Settings**. Once the
+mapping is saved, run **Sync to Halo** from the Halo API page if the Direct
+Debit custom field needs an immediate update.
 
 ### Automatic Mapping Rules
 
