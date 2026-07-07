@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { pgPool } from "../lib/db.js";
 import { sendAdminAlert } from "../lib/alerts.js";
+import { createGoCardlessMapActionToken } from "../lib/admin-action-tokens.js";
 import { getGoCardlessDirectDebitAlertSummary } from "../lib/gocardless.js";
 
 const execFileAsync = promisify(execFile);
@@ -95,6 +96,36 @@ function formatUnmappedMandate(item) {
   return `${item.customerName || item.customerId} (${item.customerId})${status}`;
 }
 
+function formatActionTitle(prefix, name) {
+  const cleanName = String(name || "").replace(/\s+/g, " ").trim();
+  const shortName = cleanName.length > 24 ? `${cleanName.slice(0, 21)}...` : cleanName;
+  return `${prefix} ${shortName || "customer"}`;
+}
+
+function buildMappingAction(item) {
+  if (Number(item.candidateCount || 0) !== 1 || !item.suggestedXeroContactGuid) {
+    return null;
+  }
+
+  try {
+    const candidate = item.candidates?.[0] || {};
+    const token = createGoCardlessMapActionToken({
+      xeroContactGuid: item.suggestedXeroContactGuid,
+      goCardlessCustomerId: item.customerId,
+      haloClientName: candidate.haloClientName || item.customerName || "",
+      goCardlessCustomerName: item.customerName || ""
+    });
+
+    return {
+      title: formatActionTitle("Map", item.customerName || item.customerId),
+      url: `${ADMIN_BASE_URL}/actions/gocardless/map?token=${encodeURIComponent(token)}`
+    };
+  } catch (err) {
+    console.warn("Direct Debit mapping action skipped:", item.customerId, err.message);
+    return null;
+  }
+}
+
 async function shouldRunDirectDebitExceptionScan() {
   await ensureAlertStateTable();
   const { rows } = await pgPool.query(
@@ -127,7 +158,7 @@ async function shouldRunDirectDebitExceptionScan() {
 
 async function getDirectDebitMandateIssues() {
   if (!(await shouldRunDirectDebitExceptionScan())) {
-    return [];
+    return { issues: [], actions: [] };
   }
 
   let summary;
@@ -135,13 +166,17 @@ async function getDirectDebitMandateIssues() {
     summary = await getGoCardlessDirectDebitAlertSummary({
       unmappedLimit: DD_ALERT_UNMAPPED_LIMIT,
       mismatchLimit: DD_ALERT_MISMATCH_LIMIT,
-      mappedCheckLimit: DD_ALERT_MAPPED_CHECK_LIMIT
+      mappedCheckLimit: DD_ALERT_MAPPED_CHECK_LIMIT,
+      includeCandidates: true
     });
   } catch (err) {
-    return [{ title: "Direct Debit scan", value: `Failed: ${err.response?.status || err.message}` }];
+    return {
+      issues: [{ title: "Direct Debit scan", value: `Failed: ${err.response?.status || err.message}` }],
+      actions: []
+    };
   }
 
-  if (!summary.configured) return [];
+  if (!summary.configured) return { issues: [], actions: [] };
 
   const issues = [];
   const unmappedTotals = summary.unmapped?.totals || {};
@@ -149,6 +184,7 @@ async function getDirectDebitMandateIssues() {
   const activeUnmapped = Number(unmappedTotals.activeUnmappedCustomers || 0);
   const totalUnmapped = Number(unmappedTotals.unmappedCustomers || 0);
   const pendingUnmapped = Math.max(totalUnmapped - activeUnmapped, 0);
+  const mapActions = [];
 
   if (activeUnmapped > 0) {
     issues.push({
@@ -159,6 +195,12 @@ async function getDirectDebitMandateIssues() {
         .map(formatUnmappedMandate)
         .join("\n")
     });
+    mapActions.push(
+      ...unmappedItems
+        .filter(item => Number(item.activeCount || 0) > 0)
+        .map(buildMappingAction)
+        .filter(Boolean)
+    );
   }
 
   if (pendingUnmapped > 0) {
@@ -170,6 +212,12 @@ async function getDirectDebitMandateIssues() {
         .map(formatUnmappedMandate)
         .join("\n")
     });
+    mapActions.push(
+      ...unmappedItems
+        .filter(item => Number(item.activeCount || 0) === 0)
+        .map(buildMappingAction)
+        .filter(Boolean)
+    );
   }
 
   if (summary.duplicateMappings.length > 0) {
@@ -209,7 +257,10 @@ async function getDirectDebitMandateIssues() {
     });
   }
 
-  return issues;
+  return {
+    issues,
+    actions: mapActions.slice(0, 5)
+  };
 }
 
 async function shouldSendAlert(fingerprint) {
@@ -246,12 +297,14 @@ async function shouldSendAlert(fingerprint) {
 }
 
 async function main() {
+  const directDebitResult = await getDirectDebitMandateIssues();
   const issues = [
     ...(await getPm2Issues()),
     ...(await getSyncIssues()),
     ...(await getWebhookIssues()),
-    ...(await getDirectDebitMandateIssues())
+    ...directDebitResult.issues
   ];
+  const alertActions = directDebitResult.actions || [];
 
   if (!issues.length) {
     console.log("Service health OK");
@@ -277,7 +330,13 @@ async function main() {
       : "One or more production service checks failed.",
     facts: issues.slice(0, 10),
     actionUrl: hasDirectDebitIssue ? GOCARDLESS_ADMIN_URL : ADMIN_BASE_URL,
-    actionTitle: hasDirectDebitIssue ? "Open GoCardless Admin" : "Open Admin"
+    actionTitle: hasDirectDebitIssue ? "Open GoCardless Admin" : "Open Admin",
+    actions: hasDirectDebitIssue
+      ? [
+          ...alertActions,
+          { title: "Open GoCardless Admin", url: GOCARDLESS_ADMIN_URL }
+        ]
+      : []
   });
   console.log(`Service health alert sent: ${issues.map(issue => `${issue.title}: ${issue.value}`).join("; ")}`);
 }

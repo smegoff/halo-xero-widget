@@ -201,6 +201,12 @@ mapping exceptions such as unmapped active mandates, duplicate mappings,
 mappings that no longer resolve to Halo/Xero, or GoCardless records exposing a
 different Xero GUID. Routine successful jobs are not alerted.
 
+For unmapped mandate alerts, Teams cards include signed **Map** buttons when
+the widget has exactly one safe Halo/Xero candidate. The button opens a small
+confirmation page for that specific mapping and then saves the mapping without
+using the full admin console. Ambiguous rows still link back to the GoCardless
+admin page for review.
+
 ## 6. App Exceptions
 
 ![Admin exceptions](screenshots/admin-exceptions.png)

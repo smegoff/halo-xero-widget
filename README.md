@@ -221,6 +221,13 @@ It uses `SERVICE_ALERT_SYNC_STALE_MINUTES`,
 `DD_ALERT_MAPPED_CHECK_LIMIT` when present. DD exception scans default to once
 per hour even though the health cron runs every 5 minutes.
 
+When an unmapped mandate has exactly one safe Halo/Xero candidate, the Teams
+card includes a signed **Map** action for that customer. The link opens a small
+confirmation page and then writes the mapping plus Halo Direct Debit field sync;
+it does not require opening the full admin console. Action links are signed with
+`ADMIN_ACTION_TOKEN_SECRET`, falling back to `ADMIN_SESSION_SECRET`, and expire
+after `ADMIN_ACTION_TOKEN_TTL_SECONDS` or 24 hours by default.
+
 ## PM2
 
 ```bash

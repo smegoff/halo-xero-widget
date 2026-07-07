@@ -123,6 +123,9 @@ Repeated identical alerts are suppressed by `SERVICE_ALERT_COOLDOWN_MINUTES`
 and stale sync detection defaults to `SERVICE_ALERT_SYNC_STALE_MINUTES=20`.
 The DD exception scan is throttled separately with
 `DD_ALERT_SCAN_INTERVAL_MINUTES`, defaulting to 60 minutes.
+Signed Teams mapping actions use `ADMIN_ACTION_TOKEN_SECRET` when configured,
+or fall back to `ADMIN_SESSION_SECRET`. `ADMIN_ACTION_TOKEN_TTL_SECONDS`
+controls expiry and defaults to 24 hours.
 
 ## Rollback
 

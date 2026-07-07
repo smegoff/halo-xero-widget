@@ -57,6 +57,7 @@ import {
   updateAdminUserPassword
 } from "./lib/admin-auth.js";
 import { sendAdminAlert } from "./lib/alerts.js";
+import { verifyGoCardlessMapActionToken } from "./lib/admin-action-tokens.js";
 import { buildOtpAuthUrl } from "./lib/totp.js";
 import {
   deleteGoCardlessMapping,
@@ -151,6 +152,44 @@ function formatLocalDate(iso) {
   } catch {
     return iso;
   }
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderActionResultPage({ title, message, status = 200 }) {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>${escapeHtml(title)}</title>
+      <style>
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f3f6fa; font-family: Roboto, Segoe UI, Arial, sans-serif; color: #0f172a; }
+        main { width: min(560px, calc(100vw - 32px)); background: white; border: 1px solid #dbe3ec; border-radius: 8px; padding: 28px; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+        h1 { margin: 0 0 12px; color: ${status >= 400 ? "#9f1239" : "#087f7b"}; font-size: 22px; }
+        p { line-height: 1.5; }
+        button, a.button { display: inline-flex; border: 0; border-radius: 999px; background: #087f7b; color: white; padding: 10px 16px; font-weight: 600; text-decoration: none; cursor: pointer; }
+        dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; font-size: 14px; }
+        dt { color: #64748b; }
+        dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+      </style>
+    </head>
+    <body>
+      <main>
+        <h1>${escapeHtml(title)}</h1>
+        ${message}
+      </main>
+    </body>
+    </html>
+  `;
 }
 
 const METRIC_RANGE_PRESETS = [
@@ -1815,6 +1854,83 @@ app.get("/admin/xero/connect", requireAdminAuth, async (_req, res) => {
 
 app.get("/admin/xero/callback", requireAdminAuth, (_req, res) => {
   res.status(410).send("Xero Custom Connections do not use an OAuth callback.");
+});
+
+// -------------------------------------------------
+// SIGNED ADMIN ACTION LINKS
+// -------------------------------------------------
+app.get("/admin/actions/gocardless/map", async (req, res) => {
+  try {
+    const action = verifyGoCardlessMapActionToken(req.query.token);
+    const haloClient = await getHaloClientByXeroGuid(action.xeroContactGuid);
+    const haloClientName = haloClient?.halo_client_name || action.haloClientName || action.goCardlessCustomerName;
+
+    return res.send(renderActionResultPage({
+      title: "Confirm Direct Debit Mapping",
+      message: `
+        <p>This signed action will map the GoCardless customer to the Halo/Xero client below.</p>
+        <dl>
+          <dt>GoCardless</dt><dd>${escapeHtml(action.goCardlessCustomerName || action.goCardlessCustomerId)} (${escapeHtml(action.goCardlessCustomerId)})</dd>
+          <dt>Halo/Xero</dt><dd>${escapeHtml(haloClientName || action.xeroContactGuid)}</dd>
+          <dt>Xero GUID</dt><dd>${escapeHtml(action.xeroContactGuid)}</dd>
+        </dl>
+        <form method="POST" action="/admin/actions/gocardless/map" style="margin-top: 22px;">
+          <input type="hidden" name="token" value="${escapeHtml(req.query.token)}" />
+          <button type="submit">Confirm Mapping</button>
+        </form>
+      `
+    }));
+  } catch (err) {
+    return res.status(400).send(renderActionResultPage({
+      title: "Mapping Link Invalid",
+      status: 400,
+      message: `<p>${escapeHtml(err.message || "This mapping link is invalid or expired.")}</p>`
+    }));
+  }
+});
+
+app.post("/admin/actions/gocardless/map", async (req, res) => {
+  try {
+    const action = verifyGoCardlessMapActionToken(req.body.token);
+    const haloClient = await getHaloClientByXeroGuid(action.xeroContactGuid);
+    const haloClientName = haloClient?.halo_client_name || action.haloClientName || action.goCardlessCustomerName || "";
+
+    await upsertGoCardlessMapping({
+      xeroContactGuid: action.xeroContactGuid,
+      goCardlessCustomerId: action.goCardlessCustomerId,
+      haloClientName,
+      notes: "Mapped from signed Teams Direct Debit alert action"
+    });
+
+    let syncMessage = "Halo Direct Debit field checked.";
+    try {
+      const syncResult = await updateHaloDirectDebitFieldForMapping({
+        xero_contact_guid: action.xeroContactGuid,
+        gocardless_customer_id: action.goCardlessCustomerId,
+        halo_client_name: haloClientName
+      });
+      syncMessage = syncResult.updated
+        ? "Halo Direct Debit field updated."
+        : "Halo Direct Debit field checked.";
+    } catch (syncErr) {
+      syncMessage = `Mapping saved, but Halo Direct Debit field sync failed: ${syncErr.response?.status || syncErr.message}`;
+    }
+
+    return res.send(renderActionResultPage({
+      title: "Direct Debit Mapping Saved",
+      message: `
+        <p>GoCardless customer <strong>${escapeHtml(action.goCardlessCustomerId)}</strong> is now mapped to <strong>${escapeHtml(haloClientName || action.xeroContactGuid)}</strong>.</p>
+        <p>${escapeHtml(syncMessage)}</p>
+        <p><a class="button" href="/admin/gocardless#unmapped-mandates">Open GoCardless Admin</a></p>
+      `
+    }));
+  } catch (err) {
+    return res.status(400).send(renderActionResultPage({
+      title: "Mapping Failed",
+      status: 400,
+      message: `<p>${escapeHtml(err.message || "The Direct Debit mapping could not be saved.")}</p>`
+    }));
+  }
 });
 
 // -------------------------------------------------
